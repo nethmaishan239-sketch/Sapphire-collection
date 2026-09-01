@@ -3,187 +3,258 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# වෙබ් අඩවියේ මූලික සැකසුම්
-st.set_page_config(page_title="Sapphire Collection POS", layout="wide")
+# Page Configuration
+st.set_page_config(page_title="Sapphire Collection", layout="wide")
 
-# ---------------- 🔒 PASSWORD PROTECTION ----------------
-password = st.text_input("🔒 කරුණාකර කඩේ Password එක ඇතුළත් කරන්න:", type="password")
-
-if password != "1234":  # "1234" වෙනුවට ඔබට අවශ්‍ය වෙනත් රහස් අංකයක් මෙහි යෙදිය හැක
-    if password != "":
-        st.error("වැරදි Password එකක්! කරුණාකර නිවැරදි අංකය දෙන්න.")
-    st.stop()  # නිවැරදි Password එක දෙන තුරු ඇප් එක ඉදිරියට ක්‍රියාත්මක වීම නවත්වයි
-
-# දත්ත ගබඩා කරන ෆයිල් (Files)
+# Files for Data Persistence
 PRODUCT_FILE = "products.csv"
 SALES_FILE = "sales.csv"
 
-# අලුතින් ෆයිල් හැදීම (නැතිනම් පමණක්)
-if not os.path.exists(PRODUCT_FILE):
-    df_prod = pd.DataFrame(columns=["Product_Code", "Name", "Price", "Initial_Stock"])
-    df_prod.to_csv(PRODUCT_FILE, index=False)
+# Function to initialize CSV files if they don't exist or are empty
+def init_files():
+    if not os.path.exists(PRODUCT_FILE) or os.stat(PRODUCT_FILE).st_size == 0:
+        df_p = pd.DataFrame(columns=["Code", "Product Name", "One Product Price", "Total Meter", "Total Yard"])
+        df_p.to_csv(PRODUCT_FILE, index=False)
+    
+    if not os.path.exists(SALES_FILE) or os.stat(SALES_FILE).st_size == 0:
+        df_s = pd.DataFrame(columns=["Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "One Product Price", "Total Price"])
+        df_s.to_csv(SALES_FILE, index=False)
 
-if not os.path.exists(SALES_FILE):
-    df_sales = pd.DataFrame(columns=["Date", "Product_Code", "Quantity", "Unit_Price", "Total"])
-    df_sales.to_csv(SALES_FILE, index=False)
+init_files()
 
 def load_products():
-    return pd.read_csv(PRODUCT_FILE)
+    try:
+        df = pd.read_csv(PRODUCT_FILE, dtype={"Code": str})
+        for col in ["One Product Price", "Total Meter", "Total Yard"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["Code", "Product Name", "One Product Price", "Total Meter", "Total Yard"])
+
+def save_products(df):
+    df.to_csv(PRODUCT_FILE, index=False)
 
 def load_sales():
-    return pd.read_csv(SALES_FILE)
+    try:
+        df = pd.read_csv(SALES_FILE, dtype={"Code": str})
+        for col in ["Meter Amount", "Yard Amount", "One Product Price", "Total Price"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "One Product Price", "Total Price"])
 
-# පැත්තේ ඇති මෙනුව (Sidebar Menu)
-st.sidebar.title("💎 Sapphire Collection")
-menu = st.sidebar.radio("අංශය තෝරන්න:", ["🛒 Bill Issue", "📦 Product", "📊 Stock", "📈 Today Sell"])
+def save_sales(df):
+    df.to_csv(SALES_FILE, index=False)
 
-# ---------------- 1. PRODUCT (භාණ්ඩ ඇතුළත් කිරීම) ----------------
-if menu == "📦 Product":
-    st.header("📦 නව භාණ්ඩ ඇතුළත් කිරීම (Products)")
+# ------------ 🔒 LOGGING / PASSWORD PROTECTION ------------
+st.title("Sapphire Collection")
+
+password = st.text_input("🔑 Logging (Password):", type="password")
+
+if password != "1234":
+    if password != "":
+        st.error("වැරදි Password එකක්! කරුණාකර නිවැරදි Password එක ඇතුළත් කරන්න.")
+    st.stop()
+
+# ------------ MAIN MENU ------------
+st.markdown("---")
+menu = st.radio("Navigation", ["Product", "Bill Issue", "Stock", "Today sell"], horizontal=True)
+st.markdown("---")
+
+# ==================== 1. PRODUCT ====================
+if menu == "Product":
+    st.header("📦 Product")
     
-    with st.form("product_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            code = st.text_input("Product Code (භාණ්ඩ කේතය)")
-            name = st.text_input("Product Name (භාණ්ඩයේ නම)")
-        with col2:
-            price = st.number_input("Unit Price (මිල රු.)", min_value=0.0, step=10.0)
-            stock = st.number_input("Initial Stock (මුල් තොගය)", min_value=0, step=1)
-        
-        submit = st.form_submit_button("භාණ්ඩය ඇතුළත් කරන්න")
-
-        if submit:
-            if code and name:
-                df = load_products()
-                if code in df['Product_Code'].values:
-                    st.error("මෙම කේතය දැනටමත් පද්ධතියේ ඇත!")
+    df_products = load_products()
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("➕ Product එකක් එකතු කිරීම / වෙනස් කිරීම")
+        with st.form("add_product_form", clear_on_submit=True):
+            p_name = st.text_input("Product Name (භාණ්ඩයේ නම)").strip()
+            p_code = st.text_input("Code (කේතය)").strip()
+            p_price = st.number_input("One Product Price (ඒකක මිල Rs.)", min_value=0.0, step=10.0)
+            p_meter = st.number_input("Initial Total Meter (ආරම්භක මීටර් ප්‍රමාණය)", min_value=0.0, step=0.5)
+            p_yard = st.number_input("Initial Total Yard (ආරම්භක යාඩ් ප්‍රමාණය)", min_value=0.0, step=0.5)
+            
+            submit_p = st.form_submit_button("Save Product")
+            
+            if submit_p:
+                if not p_code or not p_name:
+                    st.error("කරුණාකර Code එක සහ Product Name එක දෙකම ඇතුළත් කරන්න.")
                 else:
-                    new_data = pd.DataFrame({"Product_Code": [code], "Name": [name], "Price": [price], "Initial_Stock": [stock]})
-                    df = pd.concat([df, new_data], ignore_index=True)
-                    df.to_csv(PRODUCT_FILE, index=False)
-                    st.success(f"{name} පද්ධතියට සාර්ථකව එකතු කරන ලදී!")
-            else:
-                st.warning("කරුණාකර කේතය සහ නම ඇතුළත් කරන්න.")
-                
-    st.subheader("දැනට පවතින භාණ්ඩ ලැයිස්තුව")
-    st.dataframe(load_products(), use_container_width=True)
+                    if p_code in df_products["Code"].astype(str).values:
+                        df_products.loc[df_products["Code"].astype(str) == p_code, ["Product Name", "One Product Price", "Total Meter", "Total Yard"]] = [p_name, p_price, p_meter, p_yard]
+                        st.success(f"Product '{p_name}' (Code: {p_code}) Update විය!")
+                    else:
+                        new_row = pd.DataFrame([{
+                            "Code": p_code,
+                            "Product Name": p_name,
+                            "One Product Price": p_price,
+                            "Total Meter": p_meter,
+                            "Total Yard": p_yard
+                        }])
+                        df_products = pd.concat([df_products, new_row], ignore_index=True)
+                        st.success(f"Product '{p_name}' සාර්ථකව ඇතුළත් විය!")
+                    save_products(df_products)
+                    st.rerun()
 
-# ---------------- 2. BILL ISSUE (බිල් නිකුත් කිරීම) ----------------
-elif menu == "🛒 Bill Issue":
-    st.header("🛒 බිල්පත් නිකුත් කිරීම (Bill Issue)")
+    with col2:
+        st.subheader("🗑️ Product එකක් මකා දැමීම")
+        if not df_products.empty:
+            delete_code = st.selectbox("මකා දැමීමට අවශ්‍ය Product එක තෝරන්න:", df_products["Code"].astype(str) + " - " + df_products["Product Name"])
+            if st.button("Delete Product", type="primary"):
+                selected_code = delete_code.split(" - ")[0]
+                df_products = df_products[df_products["Code"].astype(str) != selected_code]
+                save_products(df_products)
+                st.success("Product එක සාර්ථකව මකා දමන ලදී!")
+                st.rerun()
+        else:
+            st.info("දැනට ඇතුළත් කළ Products නොමැත.")
+
+    st.subheader("📋 Product List")
+    if not df_products.empty:
+        st.dataframe(df_products[["Product Name", "Code", "One Product Price"]], use_container_width=True)
+    else:
+        st.info("Products නොමැත.")
+
+# ==================== 2. BILL ISSUE ====================
+elif menu == "Bill Issue":
+    st.header("🧾 Bill Issue")
     
     df_products = load_products()
+    
     if df_products.empty:
-        st.warning("පළමුව Product අංශයෙන් භාණ්ඩ ඇතුළත් කරන්න.")
+        st.warning("කරුණාකර පළමුව 'Product' අංශයෙන් භාණ්ඩ ඇතුළත් කරන්න.")
     else:
-        product_list = df_products['Product_Code'].astype(str) + " - " + df_products['Name']
-        selected_item = st.selectbox("භාණ්ඩය තෝරන්න (Code හෝ නම සොයන්න):", product_list)
+        product_options = df_products["Code"].astype(str) + " - " + df_products["Product Name"]
+        selected_prod_str = st.selectbox("Product Name / Code තෝරන්න:", product_options)
         
-        if selected_item:
-            selected_code = selected_item.split(" - ")[0]
-            product_info = df_products[df_products['Product_Code'] == selected_code].iloc[0]
+        selected_code = selected_prod_str.split(" - ")[0]
+        product_row = df_products[df_products["Code"].astype(str) == selected_code].iloc[0]
+        
+        p_name = product_row["Product Name"]
+        p_price = float(product_row["One Product Price"])
+        curr_meter = float(product_row["Total Meter"])
+        curr_yard = float(product_row["Total Yard"])
+        
+        st.info(f"📌 **තෝරාගත් භාණ්ඩය:** {p_name} | **Code:** {selected_code} | **දැනට ඇති Stock:** {curr_meter} Meters, {curr_yard} Yards")
+        
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            sell_meter = st.number_input("Meter Amount (මීටර් ප්‍රමාණය):", min_value=0.0, step=0.1)
+        with col_b2:
+            sell_yard = st.number_input("Yard Amount (යාඩ් ප්‍රමාණය):", min_value=0.0, step=0.1)
             
-            st.info(f"**තෝරාගත් භාණ්ඩය:** {product_info['Name']} | **ඒකකයක මිල:** රු. {product_info['Price']:.2f}")
-            
-            with st.form("bill_form"):
-                qty = st.number_input("ප්‍රමාණය (Quantity)", min_value=1.0, step=1.0)
-                total_price = qty * product_info['Price']
-                st.write(f"### මුළු මුදල (Total): රු. {total_price:.2f}")
+        unit_price = st.number_input("One Product Price (Rs.):", value=p_price, min_value=0.0, step=10.0)
+        
+        total_units = sell_meter + sell_yard
+        total_price = total_units * unit_price
+        
+        st.markdown(f"### 💵 Total Price: **Rs. {total_price:,.2f}**")
+        
+        if st.button("🛒 Print & Issue Bill", type="primary"):
+            if sell_meter <= 0 and sell_yard <= 0:
+                st.error("කරුණාකර Meter හෝ Yard ප්‍රමාණයක් ඇතුළත් කරන්න.")
+            elif sell_meter > curr_meter or sell_yard > curr_yard:
+                st.error("තොගයේ (Stock) ප්‍රමාණවත් තරම් Meter / Yard නොමැත!")
+            else:
+                # Deduct stock
+                df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Meter"] = curr_meter - sell_meter
+                df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Yard"] = curr_yard - sell_yard
+                save_products(df_products)
                 
-                issue_bill = st.form_submit_button("බිල නිකුත් කරන්න (Issue Bill)")
+                # Add to sales
+                df_sales = load_sales()
+                now = datetime.now()
+                new_sale = pd.DataFrame([{
+                    "Date": now.strftime("%Y-%m-%d"),
+                    "Time": now.strftime("%H:%M:%S"),
+                    "Product Name": p_name,
+                    "Code": selected_code,
+                    "Meter Amount": sell_meter,
+                    "Yard Amount": sell_yard,
+                    "One Product Price": unit_price,
+                    "Total Price": total_price
+                }])
+                df_sales = pd.concat([df_sales, new_sale], ignore_index=True)
+                save_sales(df_sales)
                 
-                if issue_bill:
-                    df_sales = load_sales()
-                    now = datetime.now()
-                    today_date = now.strftime("%Y-%m-%d")
-                    full_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    new_sale = pd.DataFrame({
-                        "Date": [today_date],
-                        "Product_Code": [selected_code],
-                        "Quantity": [qty],
-                        "Unit_Price": [product_info['Price']],
-                        "Total": [total_price]
-                    })
-                    df_sales = pd.concat([df_sales, new_sale], ignore_index=True)
-                    df_sales.to_csv(SALES_FILE, index=False)
-                    st.success("බිල සාර්ථකව නිකුත් කරන ලදී! තොගයෙන් අදාළ ප්‍රමාණය අඩු විය.")
-                    
-                    # --- බිල්පත ප්‍රදර්ශනය කිරීම (Receipt Display) ---
-                    receipt_text = f"""
-========================================
-         SAPPHIRE COLLECTION
-========================================
-Reg No  : R/Ka/1676
-Address : Ambalanwatta, Kahawatta
-Tel     : 045 22 739 30 / 071 941 6006 
-          070 6416006
-Email   : sapphirecollection112@gmail.com
-FB      : Sapphire Collection
-----------------------------------------
-Date & Time : {full_datetime}
-----------------------------------------
-Product    : {product_info['Name']} ({selected_code})
-Unit Price : Rs. {product_info['Price']:.2f}
-Quantity   : {qty}
-----------------------------------------
-TOTAL      : Rs. {total_price:.2f}
-========================================
-       Thank You! Come Again!
-========================================
-"""
-                    st.text_area("🖨️ පාරිභෝගිකයාගේ බිල්පත (Printable Bill)", receipt_text, height=350)
+                st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී! Stock එක අඩු වී Today Sell එකට ඇතුළත් විය.")
+                
+                # Printable Receipt Summary
+                st.markdown("---")
+                st.subheader("🧾 Sapphire Collection - Receipt")
+                st.write(f"**Date & Time:** {now.strftime('%Y-%m-%d %H:%M:%S')}")
+                st.write(f"**Product Name:** {p_name}")
+                st.write(f"**Code:** {selected_code}")
+                st.write(f"**Meter Amount:** {sell_meter} m")
+                st.write(f"**Yard Amount:** {sell_yard} yd")
+                st.write(f"**One Product Price:** Rs. {unit_price:,.2f}")
+                st.write(f"### **Total Price:** Rs. {total_price:,.2f}")
+                st.markdown("---")
 
-# ---------------- 3. STOCK (තොග පරීක්ෂාව) ----------------
-elif menu == "📊 Stock":
-    st.header("📊 තොග තත්ත්වය (Stock)")
+# ==================== 3. STOCK ====================
+elif menu == "Stock":
+    st.header("📊 Stock")
     
     df_products = load_products()
-    df_sales = load_sales()
     
-    search_code = st.text_input("Product Code එක ඇතුළත් කර Search කරන්න:")
-    
-    if search_code:
-        if search_code in df_products['Product_Code'].values:
-            prod_info = df_products[df_products['Product_Code'] == search_code].iloc[0]
+    if not df_products.empty:
+        df_stock_display = df_products.copy()
+        df_stock_display["Total Price"] = (df_stock_display["Total Meter"] + df_stock_display["Total Yard"]) * df_stock_display["One Product Price"]
+        
+        # Displaying exact columns requested: Product Name, Code, Total meter, Total yard, One product Price, Total Price
+        df_stock_display = df_stock_display[["Product Name", "Code", "Total Meter", "Total Yard", "One Product Price", "Total Price"]]
+        df_stock_display.rename(columns={"Total Meter": "Total meter", "Total Yard": "Total yard", "One Product Price": "One product Price", "Total Price": "Total Price"}, inplace=True)
+        
+        st.dataframe(df_stock_display, use_container_width=True)
+        
+        st.subheader("➕ Stock එකතු කිරීම (Add Stock)")
+        with st.form("update_stock_form"):
+            update_prod = st.selectbox("Stock එකතු කිරීමට Product එක තෝරන්න:", df_products["Code"].astype(str) + " - " + df_products["Product Name"])
+            add_meter = st.number_input("එකතු කරන Meter ප්‍රමාණය:", min_value=0.0, step=1.0)
+            add_yard = st.number_input("එකතු කරන Yard ප්‍රමාණය:", min_value=0.0, step=1.0)
             
-            if not df_sales.empty:
-                sold_qty = df_sales[df_sales['Product_Code'] == search_code]['Quantity'].sum()
-            else:
-                sold_qty = 0
-                
-            total_stock = prod_info['Initial_Stock']
-            current_stock = total_stock - sold_qty
-            
-            st.subheader(f"භාණ්ඩයේ නම: {prod_info['Name']}")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("ඒකකයක මිල", f"රු. {prod_info['Price']:.2f}")
-            col2.metric("මුළු තොගය (Total Stock)", f"{total_stock}")
-            col3.metric("විකිණී ඇති ප්‍රමාණය (Sold)", f"{sold_qty}")
-            col4.metric("දැනට ඉතිරි තොගය (Current Stock)", f"{current_stock}")
-        else:
-            st.error("මෙම කේතයට අදාළ භාණ්ඩයක් නොමැත.")
-
-# ---------------- 4. TODAY SELL (අද දින විකුණුම්) ----------------
-elif menu == "📈 Today Sell":
-    st.header("📈 දෛනික විකුණුම් වාර්තාව (Today Sell)")
-    
-    df_sales = load_sales()
-    
-    if df_sales.empty:
-        st.info("දැනට කිසිදු විකුණුමක් සිදුවී නොමැත.")
+            submit_stock = st.form_submit_button("Update Stock")
+            if submit_stock:
+                u_code = update_prod.split(" - ")[0]
+                df_products.loc[df_products["Code"].astype(str) == u_code, "Total Meter"] += add_meter
+                df_products.loc[df_products["Code"].astype(str) == u_code, "Total Yard"] += add_yard
+                save_products(df_products)
+                st.success("Stock එක සාර්ථකව Update විය!")
+                st.rerun()
     else:
-        selected_date = st.date_input("දිනය තෝරන්න:", datetime.now())
-        selected_date_str = selected_date.strftime("%Y-%m-%d")
+        st.info("දැනට Stock හි භාණ්ඩ නොමැත.")
+
+# ==================== 4. TODAY SELL ====================
+elif menu == "Today sell":
+    st.header("📈 Today sell")
+    
+    df_sales = load_sales()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    df_today = df_sales[df_sales["Date"] == today_str] if not df_sales.empty else pd.DataFrame()
+    
+    if not df_today.empty:
+        total_today_income = df_today["Total Price"].sum()
+        st.metric(label="💰 අද දින මුළු ආදායම (Total Revenue Today)", value=f"Rs. {total_today_income:,.2f}")
         
-        filtered_sales = df_sales[df_sales['Date'] == selected_date_str]
+        st.subheader("📋 අද දින අලෙවි වූ ලැයිස්තුව")
+        st.dataframe(df_today[["Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "One Product Price", "Total Price"]], use_container_width=True)
         
-        if filtered_sales.empty:
-            st.warning(f"{selected_date_str} දිනට අදාළ විකුණුම් කිසිවක් නැත.")
-        else:
-            st.write(f"### {selected_date_str} දින විකුණුම් ලැයිස්තුව")
-            st.dataframe(filtered_sales, use_container_width=True)
-            
-            daily_total = filtered_sales['Total'].sum()
-            st.success(f"### මෙම දිනයේ මුළු ආදායම: රු. {daily_total:.2f}")
+        st.markdown("---")
+        st.subheader("🗑️ Sales Record එකක් මකා දැමීම")
+        sale_indices = df_today.index.tolist()
+        sale_labels = [f"ID: {idx} | {df_today.loc[idx, 'Time']} - {df_today.loc[idx, 'Product Name']} (Rs. {df_today.loc[idx, 'Total Price']})" for idx in sale_indices]
+        
+        selected_sale = st.selectbox("මකා දැමීමට අවශ්‍ය විකුණුම් සටහන තෝරන්න:", sale_labels)
+        if st.button("Delete Record", type="primary"):
+            sel_idx = int(selected_sale.split(" | ")[0].replace("ID: ", ""))
+            df_sales = df_sales.drop(sel_idx)
+            save_sales(df_sales)
+            st.success("විකුණුම් සටහන සාර්ථකව මකා දමන ලදී!")
+            st.rerun()
+    else:
+        st.info("අද දින තවමත් අලෙවියන් සිදු වී නොමැත.")
