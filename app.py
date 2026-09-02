@@ -1,70 +1,57 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, date
 
 # Page Configuration
-st.set_page_config(page_title="Sapphire Collection", layout="wide")
+st.set_page_config(page_title="Sapphire Collection POS", layout="wide")
 
 # Files for Data Persistence
 PRODUCT_FILE = "products.csv"
 SALES_FILE = "sales.csv"
+EXPENSES_FILE = "expenses.csv"
+CREDIT_FILE = "credit.csv"
 
-# Function to initialize CSV files with Quantity and Warranty fields
+# Function to initialize CSV files
 def init_files():
     if not os.path.exists(PRODUCT_FILE) or os.stat(PRODUCT_FILE).st_size == 0:
-        df_p = pd.DataFrame(columns=["Code", "Product Name", "One Product Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)"])
+        df_p = pd.DataFrame(columns=["Code", "Product Name", "Cost Price", "Selling Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)", "Min Threshold"])
         df_p.to_csv(PRODUCT_FILE, index=False)
     
     if not os.path.exists(SALES_FILE) or os.stat(SALES_FILE).st_size == 0:
-        df_s = pd.DataFrame(columns=["Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", "One Product Price", "Total Price"])
+        df_s = pd.DataFrame(columns=["Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", "Cost Price", "Selling Price", "Discount", "Total Price", "Profit", "Payment Method", "Customer"])
         df_s.to_csv(SALES_FILE, index=False)
+
+    if not os.path.exists(EXPENSES_FILE) or os.stat(EXPENSES_FILE).st_size == 0:
+        df_e = pd.DataFrame(columns=["Date", "Description", "Amount"])
+        df_e.to_csv(EXPENSES_FILE, index=False)
+
+    if not os.path.exists(CREDIT_FILE) or os.stat(CREDIT_FILE).st_size == 0:
+        df_c = pd.DataFrame(columns=["Customer Name", "Phone", "Due Balance", "Last Date"])
+        df_c.to_csv(CREDIT_FILE, index=False)
 
 init_files()
 
-def load_products():
+# Data Load & Save Helpers
+def load_data(file_path):
     try:
-        df = pd.read_csv(PRODUCT_FILE, dtype={"Code": str})
-        for col in ["One Product Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)"]:
-            if col not in df.columns:
-                df[col] = 0.0
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-        return df
+        return pd.read_csv(file_path, dtype={"Code": str, "Phone": str})
     except Exception:
-        return pd.DataFrame(columns=["Code", "Product Name", "One Product Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)"])
+        return pd.DataFrame()
 
-def save_products(df):
-    df.to_csv(PRODUCT_FILE, index=False)
+def save_data(df, file_path):
+    df.to_csv(file_path, index=False)
 
-def load_sales():
-    try:
-        df = pd.read_csv(SALES_FILE, dtype={"Code": str})
-        if "Quantity (Pcs)" not in df.columns:
-            df["Quantity (Pcs)"] = 0.0
-        if "Warranty" not in df.columns:
-            df["Warranty"] = "N/A"
-        for col in ["Meter Amount", "Yard Amount", "Quantity (Pcs)", "One Product Price", "Total Price"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-        df["Warranty"] = df["Warranty"].fillna("N/A").astype(str)
-        return df
-    except Exception:
-        return pd.DataFrame(columns=["Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", "One Product Price", "Total Price"])
-
-def save_sales(df):
-    df.to_csv(SALES_FILE, index=False)
-
-# Session State for Page Navigation
+# Session State Setup
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "Main Menu"
 
-# ==================== 🔒 1. LOGING PAGE ====================
+# ==================== 🔒 1. LOGIN PAGE ====================
 if not st.session_state["logged_in"]:
-    st.markdown("<h1 style='text-align: center; color: #4CAF50; font-size: 42px; margin-bottom: 0px;'>SAPPHIRE COLLECTION</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 16px; color: #aaa; margin-top: 0px;'>Electronics & Textiles Store</p>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; margin-top: 20px;'>Login</h2>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #4CAF50;'>SAPPHIRE COLLECTION POS</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Login</h3>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -75,7 +62,7 @@ if not st.session_state["logged_in"]:
                 st.session_state["current_page"] = "Main Menu"
                 st.rerun()
             else:
-                st.error("වැරදි Password එකක්! නිවැරදි Password එක ඇතුළත් කරන්න.")
+                st.error("වැරදි Password එකක්!")
 
 # ==================== 🏠 LOGGED IN SYSTEM ====================
 else:
@@ -92,353 +79,288 @@ else:
             st.session_state["current_page"] = "Main Menu"
             st.rerun()
 
-    # ==================== 2. MAIN MENU (SAPPHIRE COLLECTION) ====================
+    # ==================== 2. MAIN MENU ====================
     if st.session_state["current_page"] == "Main Menu":
-        st.markdown("<h1 style='text-align: center;'>Sapphire Collection</h1>", unsafe_allow_html=True)
-        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center;'>Sapphire Collection POS</h1>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("📦\n\nProduct", use_container_width=True):
+            if st.button("📦 Product", use_container_width=True):
                 st.session_state["current_page"] = "Product"
                 st.rerun()
+            if st.button("📖 Udara Book (ණය)", use_container_width=True):
+                st.session_state["current_page"] = "Credit Book"
+                st.rerun()
         with col2:
-            if st.button("🧾\n\nBill Issue", use_container_width=True):
+            if st.button("🧾 Bill Issue", use_container_width=True):
                 st.session_state["current_page"] = "Bill Issue"
                 st.rerun()
+            if st.button("💸 Shop Expenses", use_container_width=True):
+                st.session_state["current_page"] = "Expenses"
+                st.rerun()
         with col3:
-            if st.button("📊\n\nStock", use_container_width=True):
+            if st.button("📊 Stock & Alerts", use_container_width=True):
                 st.session_state["current_page"] = "Stock"
                 st.rerun()
-                
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        col4, col5 = st.columns(2)
-        with col4:
-            if st.button("📈\n\nToday sell", use_container_width=True):
-                st.session_state["current_page"] = "Today sell"
-                st.rerun()
-        with col5:
-            if st.button("📄\n\nInvoice", use_container_width=True):
-                st.session_state["current_page"] = "Invoice"
+            if st.button("📈 Reports & Net Profit", use_container_width=True):
+                st.session_state["current_page"] = "Reports"
                 st.rerun()
 
     # ==================== 3. PRODUCT PAGE ====================
     elif st.session_state["current_page"] == "Product":
-        st.title("Product")
-        df_products = load_products()
+        st.title("📦 Product Management")
+        df_products = load_data(PRODUCT_FILE)
         
         col1, col2 = st.columns([1, 1])
         with col1:
-            st.subheader("➕ Product එකක් එකතු කිරීම")
+            st.subheader("➕ Product එකතු කිරීම / Update කිරීම")
             with st.form("add_product_form", clear_on_submit=True):
-                p_name = st.text_input("Product Name (උදා: Rice Cooker / Oven / Silk Fabric)").strip()
-                p_code = st.text_input("code").strip()
-                p_price = st.number_input("One Product Price (Rs.)", min_value=0.0, step=10.0)
+                p_name = st.text_input("Product Name").strip()
+                p_code = st.text_input("Product Code").strip()
+                p_cost = st.number_input("Cost Price (ගන්නා මිල Rs.)", min_value=0.0, step=10.0)
+                p_sell = st.number_input("Selling Price (විකුණන මිල Rs.)", min_value=0.0, step=10.0)
                 
-                st.caption("📌 තොග ප්‍රමාණ ඇතුළත් කරන්න:")
                 col_p1, col_p2, col_p3 = st.columns(3)
                 with col_p1:
-                    p_meter = st.number_input("Total Meter (රෙදි සඳහා)", min_value=0.0, step=0.5)
+                    p_meter = st.number_input("Total Meter", min_value=0.0, step=0.5)
                 with col_p2:
-                    p_yard = st.number_input("Total Yard (රෙදි සඳහා)", min_value=0.0, step=0.5)
+                    p_yard = st.number_input("Total Yard", min_value=0.0, step=0.5)
                 with col_p3:
-                    p_qty = st.number_input("Quantity (Pcs) (ඉලෙක්ට්‍රොනික් සඳහා)", min_value=0.0, step=1.0)
+                    p_qty = st.number_input("Quantity (Pcs)", min_value=0.0, step=1.0)
                 
+                p_min = st.number_input("⚠️ Low Stock Warning Threshold (අඩුම තොග සීමාව)", min_value=1.0, value=5.0)
+
                 if st.form_submit_button("Save Product"):
                     if not p_code or not p_name:
                         st.error("Code සහ Product Name ඇතුළත් කරන්න.")
                     else:
-                        if p_code in df_products["Code"].astype(str).values:
-                            df_products.loc[df_products["Code"].astype(str) == p_code, ["Product Name", "One Product Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)"]] = [p_name, p_price, p_meter, p_yard, p_qty]
-                            st.success("Product එක Update විය!")
+                        new_data = {
+                            "Code": p_code, "Product Name": p_name, "Cost Price": p_cost, 
+                            "Selling Price": p_sell, "Total Meter": p_meter, "Total Yard": p_yard, 
+                            "Total Quantity (Pcs)": p_qty, "Min Threshold": p_min
+                        }
+                        if not df_products.empty and p_code in df_products["Code"].astype(str).values:
+                            df_products.loc[df_products["Code"].astype(str) == p_code] = new_data
                         else:
-                            new_row = pd.DataFrame([{"Code": p_code, "Product Name": p_name, "One Product Price": p_price, "Total Meter": p_meter, "Total Yard": p_yard, "Total Quantity (Pcs)": p_qty}])
-                            df_products = pd.concat([df_products, new_row], ignore_index=True)
-                            st.success("Product එක සාර්ථකව එකතු විය!")
-                        save_products(df_products)
+                            df_products = pd.concat([df_products, pd.DataFrame([new_data])], ignore_index=True)
+                        save_data(df_products, PRODUCT_FILE)
+                        st.success("Product එක Save විය!")
                         st.rerun()
 
         with col2:
-            st.subheader("🗑️ Product එකක් මකා දැමීම")
+            st.subheader("🗑️ Delete Product")
             if not df_products.empty:
                 delete_code = st.selectbox("මකා දැමීමට Product එක තෝරන්න:", df_products["Code"].astype(str) + " - " + df_products["Product Name"])
                 if st.button("Delete Product", type="primary"):
                     selected_code = delete_code.split(" - ")[0]
                     df_products = df_products[df_products["Code"].astype(str) != selected_code]
-                    save_products(df_products)
+                    save_data(df_products, PRODUCT_FILE)
                     st.success("Product එක මකා දමන ලදී!")
                     st.rerun()
 
-        st.subheader("📋 Product List")
-        if not df_products.empty:
-            df_display = df_products[["Product Name", "Code", "Total Meter", "Total Yard", "Total Quantity (Pcs)"]].rename(columns={
-                "Code": "code",
-                "Total Meter": "Meter Stock",
-                "Total Yard": "Yard Stock",
-                "Total Quantity (Pcs)": "Pcs Stock"
-            })
-            st.dataframe(df_display, use_container_width=True)
-        else:
-            st.info("දැනට Products නොමැත.")
-
     # ==================== 4. BILL ISSUE PAGE ====================
     elif st.session_state["current_page"] == "Bill Issue":
-        st.title("Bill Issue")
-        df_products = load_products()
+        st.title("🧾 Bill Issue & POS")
+        df_products = load_data(PRODUCT_FILE)
         
         if df_products.empty:
             st.warning("පළමුව 'Product' අංශයෙන් භාණ්ඩ ඇතුළත් කරන්න.")
         else:
-            search_query = st.text_input("🔍 Product Name හෝ Code එක ගසා සොයන්න (Search):", "").strip()
-            
-            if search_query:
-                filtered_products = df_products[
-                    df_products["Code"].astype(str).str.contains(search_query, case=False, na=False) |
-                    df_products["Product Name"].str.contains(search_query, case=False, na=False)
-                ]
-            else:
-                filtered_products = df_products
+            search_query = st.text_input("🔍 Search Product Name or Code:", "").strip()
+            filtered = df_products if not search_query else df_products[
+                df_products["Code"].astype(str).str.contains(search_query, case=False, na=False) |
+                df_products["Product Name"].str.contains(search_query, case=False, na=False)
+            ]
 
-            if filtered_products.empty:
-                st.error("ඔබ සෙවූ Code එකට හෝ Name එකට අදාළ Product එකක් හමු නොවීය.")
-            else:
-                product_options = filtered_products["Code"].astype(str) + " - " + filtered_products["Product Name"]
-                selected_prod_str = st.selectbox("Product එක තෝරන්න (Select Product):", product_options)
-                
-                selected_code = selected_prod_str.split(" - ")[0]
-                product_row = filtered_products[filtered_products["Code"].astype(str) == selected_code].iloc[0]
-                
-                p_name = product_row["Product Name"]
-                p_price = float(product_row["One Product Price"])
-                curr_meter = float(product_row["Total Meter"])
-                curr_yard = float(product_row["Total Yard"])
-                curr_qty = float(product_row.get("Total Quantity (Pcs)", 0.0))
-                
-                st.info(f"📌 **තෝරාගත් භාණ්ඩය:** {p_name} | **Stock:** {curr_meter} m | {curr_yard} yd | {int(curr_qty)} Pcs")
-                
+            if not filtered.empty:
+                prod_opts = filtered["Code"].astype(str) + " - " + filtered["Product Name"]
+                sel_prod = st.selectbox("Product එක තෝරන්න:", prod_opts)
+                sel_code = sel_prod.split(" - ")[0]
+                prod_row = filtered[filtered["Code"].astype(str) == sel_code].iloc[0]
+
+                cost_price = float(prod_row.get("Cost Price", 0))
+                sell_price = float(prod_row.get("Selling Price", 0))
+                curr_m = float(prod_row.get("Total Meter", 0))
+                curr_y = float(prod_row.get("Total Yard", 0))
+                curr_q = float(prod_row.get("Total Quantity (Pcs)", 0))
+
+                st.info(f"📌 Stock: {curr_m}m | {curr_y}yd | {int(curr_q)} Pcs | Selling Price: Rs. {sell_price:,.2f}")
+
                 col_b1, col_b2, col_b3 = st.columns(3)
-                with col_b1:
-                    sell_meter = st.number_input("Meter Amount (රෙදි):", min_value=0.0, step=0.1)
-                with col_b2:
-                    sell_yard = st.number_input("Yard Amount (රෙදි):", min_value=0.0, step=0.1)
-                with col_b3:
-                    sell_qty = st.number_input("Quantity Pcs (ඉලෙක්ට්‍රොනික්):", min_value=0.0, step=1.0)
-                
-                warranty_opt = st.selectbox("Warranty (වොරන්ටිය තෝරන්න):", ["No Warranty", "6 Months Warranty", "1 Year Warranty", "2 Years Warranty", "3 Years Warranty", "Custom Warranty"])
-                if warranty_opt == "Custom Warranty":
-                    warranty_val = st.text_input("Custom Warranty එක ඇතුළත් කරන්න (උදා: 18 Months):", "1 Year Warranty")
-                else:
-                    warranty_val = warranty_opt
+                with col_b1: sell_m = st.number_input("Meter Amount:", min_value=0.0, step=0.1)
+                with col_b2: sell_y = st.number_input("Yard Amount:", min_value=0.0, step=0.1)
+                with col_b3: sell_q = st.number_input("Quantity Pcs:", min_value=0.0, step=1.0)
 
-                unit_price = st.number_input("One Product Price (Rs.):", value=p_price, min_value=0.0, step=10.0)
+                col_o1, col_o2 = st.columns(2)
+                with col_o1:
+                    disc_type = st.radio("Discount Type:", ["Flat Amount (Rs.)", "Percentage (%)"], horizontal=True)
+                    disc_val = st.number_input("Discount Value:", min_value=0.0)
+                with col_o2:
+                    pay_method = st.selectbox("Payment Method:", ["Cash", "Card", "Online Transfer / QR", "Credit (ණය)"])
+                    warranty_val = st.selectbox("Warranty:", ["No Warranty", "6 Months", "1 Year", "2 Years", "3 Years"])
+
+                cust_name, cust_phone = "", ""
+                if pay_method == "Credit (ණය)":
+                    st.subheader("👤 Customer Credit Details")
+                    cust_name = st.text_input("Customer Name:")
+                    cust_phone = st.text_input("Phone Number:")
+
+                unit_qty = sell_m + sell_y + sell_q
+                subtotal = unit_qty * sell_price
                 
-                total_units = sell_meter + sell_yard + sell_qty
-                total_price = total_units * unit_price
-                
-                st.markdown(f"### 💵 Total Price: **Rs. {total_price:,.2f}**")
-                
-                if st.button("🛒 Print & Issue Bill", type="primary"):
-                    if sell_meter <= 0 and sell_yard <= 0 and sell_qty <= 0:
-                        st.error("Meter, Yard හෝ Quantity (Pcs) ප්‍රමාණයක් ඇතුළත් කරන්න.")
-                    elif sell_meter > curr_meter or sell_yard > curr_yard or sell_qty > curr_qty:
-                        st.error("තොගයේ (Stock) ප්‍රමාණවත් තරම් ප්‍රමාණ නොමැත!")
+                discount_rs = disc_val if "Flat" in disc_type else (subtotal * disc_val / 100.0)
+                final_total = max(0.0, subtotal - discount_rs)
+                net_profit = final_total - (unit_qty * cost_price)
+
+                st.markdown(f"### 💵 Net Total: **Rs. {final_total:,.2f}** (Discount: Rs. {discount_rs:,.2f})")
+
+                if st.button("🛒 Complete Sale & Issue Bill", type="primary"):
+                    if unit_qty <= 0:
+                        st.error("ප්‍රමාණයක් ඇතුළත් කරන්න.")
+                    elif sell_m > curr_m or sell_y > curr_y or sell_q > curr_q:
+                        st.error("තොගයේ ප්‍රමාණවත් තරම් බඩු නොමැත!")
                     else:
-                        df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Meter"] = curr_meter - sell_meter
-                        df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Yard"] = curr_yard - sell_yard
-                        df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Quantity (Pcs)"] = curr_qty - sell_qty
-                        save_products(df_products)
-                        
-                        df_sales = load_sales()
+                        # Stock Update
+                        df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Meter"] = curr_m - sell_m
+                        df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Yard"] = curr_y - sell_y
+                        df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Quantity (Pcs)"] = curr_q - sell_q
+                        save_data(df_products, PRODUCT_FILE)
+
+                        # Record Sale
                         now = datetime.now()
-                        new_sale = pd.DataFrame([{
-                            "Date": now.strftime("%Y-%m-%d"),
-                            "Time": now.strftime("%H:%M:%S"),
-                            "Product Name": p_name,
-                            "Code": selected_code,
-                            "Meter Amount": sell_meter,
-                            "Yard Amount": sell_yard,
-                            "Quantity (Pcs)": sell_qty,
-                            "Warranty": warranty_val,
-                            "One Product Price": unit_price,
-                            "Total Price": total_price
-                        }])
-                        df_sales = pd.concat([df_sales, new_sale], ignore_index=True)
-                        save_sales(df_sales)
-                        
+                        new_sale = {
+                            "Date": now.strftime("%Y-%m-%d"), "Time": now.strftime("%H:%M:%S"),
+                            "Product Name": prod_row["Product Name"], "Code": sel_code,
+                            "Meter Amount": sell_m, "Yard Amount": sell_y, "Quantity (Pcs)": sell_q,
+                            "Warranty": warranty_val, "Cost Price": cost_price, "Selling Price": sell_price,
+                            "Discount": discount_rs, "Total Price": final_total, "Profit": net_profit,
+                            "Payment Method": pay_method, "Customer": cust_name
+                        }
+                        df_sales = load_data(SALES_FILE)
+                        df_sales = pd.concat([df_sales, pd.DataFrame([new_sale])], ignore_index=True)
+                        save_data(df_sales, SALES_FILE)
+
+                        # Record Credit if applicable
+                        if pay_method == "Credit (ණය)" and cust_name:
+                            df_cred = load_data(CREDIT_FILE)
+                            cred_row = {"Customer Name": cust_name, "Phone": cust_phone, "Due Balance": final_total, "Last Date": now.strftime("%Y-%m-%d")}
+                            df_cred = pd.concat([df_cred, pd.DataFrame([cred_row])], ignore_index=True)
+                            save_data(df_cred, CREDIT_FILE)
+
                         st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
-                        st.rerun()
 
-        st.subheader("📋 Bill Issue Records")
-        df_sales = load_sales()
-        if not df_sales.empty:
-            df_bill_disp = df_sales.copy()
-            df_bill_disp["Quantity Details"] = df_bill_disp.apply(
-                lambda r: f"{int(r['Quantity (Pcs)'])} Pcs" if r['Quantity (Pcs)'] > 0 else f"{r['Meter Amount']}m / {r['Yard Amount']}yd", axis=1
-            )
-            df_bill_disp.rename(columns={"One Product Price": "one product Price", "Total Price": "total Price"}, inplace=True)
-            st.dataframe(df_bill_disp[["Product Name", "Code", "Quantity Details", "Warranty", "one product Price", "total Price"]], use_container_width=True)
+                        # Thermal POS Layout Display
+                        st.markdown("---")
+                        st.subheader("🖨️ POS Receipt Preview (80mm Thermal)")
+                        receipt_html = f"""
+                        <div style="width: 280px; background: white; color: black; padding: 10px; font-family: monospace; font-size: 12px; border: 1px solid #ccc;">
+                            <h3 style="text-align:center; margin:0;">SAPPHIRE COLLECTION</h3>
+                            <p style="text-align:center; margin:0;">Electronics & Textiles</p>
+                            <p>--------------------------------</p>
+                            <p>Date: {now.strftime("%Y-%m-%d %H:%M")}<br>Pay: {pay_method}</p>
+                            <p>--------------------------------</p>
+                            <p>Item: {prod_row['Product Name']}<br>Qty: {unit_qty}<br>Price: Rs. {sell_price}</p>
+                            <p>Discount: Rs. {discount_rs:,.2f}</p>
+                            <h4>TOTAL: Rs. {final_total:,.2f}</h4>
+                            <p>--------------------------------</p>
+                            <p style="text-align:center;">Thank You! Come Again.</p>
+                        </div>
+                        """
+                        st.markdown(receipt_html, unsafe_allow_html=True)
 
-    # ==================== 5. STOCK PAGE ====================
+    # ==================== 5. STOCK & ALERTS ====================
     elif st.session_state["current_page"] == "Stock":
-        st.title("Stock")
-        df_products = load_products()
-        
-        if not df_products.empty:
-            df_stock_display = df_products.copy()
-            df_stock_display["total Price"] = (df_stock_display["Total Meter"] + df_stock_display["Total Yard"] + df_stock_display["Total Quantity (Pcs)"]) * df_stock_display["One Product Price"]
-            df_stock_display.rename(columns={
-                "Total Meter": "total mitar",
-                "Total Yard": "total yar",
-                "Total Quantity (Pcs)": "total Pcs",
-                "One Product Price": "One product Price"
-            }, inplace=True)
-            
-            st.dataframe(df_stock_display[["Product Name", "Code", "total mitar", "total yar", "total Pcs", "One product Price", "total Price"]], use_container_width=True)
-            
-            st.subheader("➕ Stock එකතු කිරීම")
-            with st.form("update_stock_form"):
-                update_prod = st.selectbox("Product එක තෝරන්න:", df_products["Code"].astype(str) + " - " + df_products["Product Name"])
-                col_u1, col_u2, col_u3 = st.columns(3)
-                with col_u1:
-                    add_meter = st.number_input("එකතු කරන Meter ප්‍රමාණය:", min_value=0.0, step=1.0)
-                with col_u2:
-                    add_yard = st.number_input("එකතු කරන Yard ප්‍රමාණය:", min_value=0.0, step=1.0)
-                with col_u3:
-                    add_qty = st.number_input("එකතු කරන Pcs (Quantity):", min_value=0.0, step=1.0)
-                
-                if st.form_submit_button("Update Stock"):
-                    u_code = update_prod.split(" - ")[0]
-                    df_products.loc[df_products["Code"].astype(str) == u_code, "Total Meter"] += add_meter
-                    df_products.loc[df_products["Code"].astype(str) == u_code, "Total Yard"] += add_yard
-                    df_products.loc[df_products["Code"].astype(str) == u_code, "Total Quantity (Pcs)"] += add_qty
-                    save_products(df_products)
-                    st.success("Stock Update විය!")
-                    st.rerun()
-        else:
-            st.info("දැනට Stock හි භාණ්ඩ නොමැත.")
+        st.title("📊 Stock & Low Stock Warnings")
+        df_products = load_data(PRODUCT_FILE)
 
-    # ==================== 6. TODAY SELL PAGE ====================
-    elif st.session_state["current_page"] == "Today sell":
-        st.title("Today sell")
-        df_sales = load_sales()
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        
-        df_today = df_sales[df_sales["Date"] == today_str] if not df_sales.empty else pd.DataFrame()
-        
-        if not df_today.empty:
-            st.metric(label="💰 අද දින මුළු ආදායම", value=f"Rs. {df_today['Total Price'].sum():,.2f}")
-            
-            df_today_disp = df_today.copy()
-            df_today_disp["Quantity Details"] = df_today_disp.apply(
-                lambda r: f"{int(r['Quantity (Pcs)'])} Pcs" if r['Quantity (Pcs)'] > 0 else f"{r['Meter Amount']}m / {r['Yard Amount']}yd", axis=1
-            )
-            df_today_disp.rename(columns={"One Product Price": "one product Price", "Total Price": "total Price"}, inplace=True)
-            
-            st.dataframe(df_today_disp[["Time", "Product Name", "Code", "Quantity Details", "Warranty", "one product Price", "total Price"]], use_container_width=True)
-            
-            st.subheader("🗑️ Sales Record එකක් මකා දැමීම")
-            sale_indices = df_today.index.tolist()
-            sale_labels = [f"ID: {idx} | {df_today.loc[idx, 'Time']} - {df_today.loc[idx, 'Product Name']} (Rs. {df_today.loc[idx, 'Total Price']})" for idx in sale_indices]
-            
-            selected_sale = st.selectbox("මකා දැමීමට විකුණුම් සටහන තෝරන්න:", sale_labels)
-            if st.button("Delete Record", type="primary"):
-                sel_idx = int(selected_sale.split(" | ")[0].replace("ID: ", ""))
-                df_sales = df_sales.drop(sel_idx)
-                save_sales(df_sales)
-                st.success("විකුණුම් සටහන මකා දමන ලදී!")
+        if not df_products.empty:
+            st.subheader("⚠️ Low Stock Alerts (තොග අඩුවී ඇති භාණ්ඩ)")
+            low_stock = df_products[
+                (df_products["Total Meter"] <= df_products["Min Threshold"]) | 
+                (df_products["Total Quantity (Pcs)"] <= df_products["Min Threshold"])
+            ]
+            if not low_stock.empty:
+                st.dataframe(low_stock[["Product Name", "Code", "Total Meter", "Total Quantity (Pcs)", "Min Threshold"]], use_container_width=True)
+            else:
+                st.success("සියලුම භාණ්ඩ ප්‍රමාණවත් ලෙස තොගයේ ඇත.")
+
+            st.subheader("📋 Complete Stock")
+            st.dataframe(df_products, use_container_width=True)
+
+            # Export to CSV
+            csv_data = df_products.to_csv(index=False).encode('utf-8')
+            st.download_button("📊 Download Stock Report (CSV/Excel)", data=csv_data, file_name="Stock_Report.csv", mime="text/csv")
+
+    # ==================== 6. REPORTS & NET PROFIT ====================
+    elif st.session_state["current_page"] == "Reports":
+        st.title("📈 Sales Reports & Net Profit")
+        df_sales = load_data(SALES_FILE)
+        df_expenses = load_data(EXPENSES_FILE)
+
+        col_d1, col_d2 = st.columns(2)
+        with col_d1: start_d = st.date_input("Start Date", value=date.today())
+        with col_d2: end_d = st.date_input("End Date", value=date.today())
+
+        if not df_sales.empty:
+            df_sales["Date_dt"] = pd.to_datetime(df_sales["Date"]).dt.date
+            mask = (df_sales["Date_dt"] >= start_d) & (df_sales["Date_dt"] <= end_d)
+            filtered_s = df_sales.loc[mask]
+
+            total_rev = filtered_s["Total Price"].sum() if not filtered_s.empty else 0
+            gross_profit = filtered_s["Profit"].sum() if not filtered_s.empty else 0
+
+            # Expenses in range
+            total_exp = 0
+            if not df_expenses.empty:
+                df_expenses["Date_dt"] = pd.to_datetime(df_expenses["Date"]).dt.date
+                filtered_e = df_expenses.loc[(df_expenses["Date_dt"] >= start_d) & (df_expenses["Date_dt"] <= end_d)]
+                total_exp = filtered_e["Amount"].sum()
+
+            net_profit = gross_profit - total_exp
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("💰 මුළු ආදායම (Revenue)", f"Rs. {total_rev:,.2f}")
+            m2.metric("📦 දළ ලාභය (Gross Profit)", f"Rs. {gross_profit:,.2f}")
+            m3.metric("💸 මුළු වියදම් (Expenses)", f"Rs. {total_exp:,.2f}")
+            m4.metric("🔥 නියම ශුද්ධ ලාභය (Net Profit)", f"Rs. {net_profit:,.2f}")
+
+            st.dataframe(filtered_s, use_container_width=True)
+
+            csv_sales = filtered_s.to_csv(index=False).encode('utf-8')
+            st.download_button("📊 Download Sales Report (CSV)", data=csv_sales, file_name="Sales_Report.csv", mime="text/csv")
+
+    # ==================== 7. SHOP EXPENSES ====================
+    elif st.session_state["current_page"] == "Expenses":
+        st.title("💸 Daily Shop Expenses Tracker")
+        df_exp = load_data(EXPENSES_FILE)
+
+        with st.form("add_exp"):
+            exp_desc = st.text_input("Expense Description (උදා: ලයිට් බිල, ප්‍රවාහන වියදම්)")
+            exp_amt = st.number_input("Amount (Rs.)", min_value=0.0)
+            if st.form_submit_button("Add Expense"):
+                if exp_desc and exp_amt > 0:
+                    new_exp = {"Date": datetime.now().strftime("%Y-%m-%d"), "Description": exp_desc, "Amount": exp_amt}
+                    df_exp = pd.concat([df_exp, pd.DataFrame([new_exp])], ignore_index=True)
+                    save_data(df_exp, EXPENSES_FILE)
+                    st.success("වියදම ඇතුළත් විය!")
+                    st.rerun()
+
+        st.subheader("📋 Expenses Log")
+        st.dataframe(df_exp, use_container_width=True)
+
+    # ==================== 8. CREDIT BOOK (UDARA BOOK) ====================
+    elif st.session_state["current_page"] == "Credit Book":
+        st.title("📖 Customer Credit Book (ණය පොත)")
+        df_cred = load_data(CREDIT_FILE)
+
+        if not df_cred.empty:
+            st.dataframe(df_cred, use_container_width=True)
+            sel_cust = st.selectbox("Settle Debt for Customer:", df_cred["Customer Name"].unique())
+            if st.button("Settle / Clear Credit"):
+                df_cred = df_cred[df_cred["Customer Name"] != sel_cust]
+                save_data(df_cred, CREDIT_FILE)
+                st.success("ණය ගෙවා අවසන් ලෙස සටහන් විය!")
                 st.rerun()
         else:
-            st.info("අද දින තවමත් අලෙවියන් සිදු වී නොමැත.")
-
-    # ==================== 7. INVOICE PAGE ====================
-    elif st.session_state["current_page"] == "Invoice":
-        st.title("📄 Invoice")
-        df_sales = load_sales()
-        
-        if df_sales.empty:
-            st.warning("දැනට නිකුත් කරන ලද බිල්පත් නොමැත.")
-        else:
-            sale_options = [
-                f"ID #{idx} | {row['Date']} {row['Time']} | {row['Product Name']} (Rs. {row['Total Price']:,.2f})"
-                for idx, row in df_sales.iterrows()
-            ]
-            selected_invoice = st.selectbox("Print / Download කිරීමට Invoice එකක් තෝරන්න:", sale_options)
-            
-            sel_idx = int(selected_invoice.split(" | ")[0].replace("ID #", ""))
-            inv_data = df_sales.loc[sel_idx]
-            
-            if inv_data.get('Quantity (Pcs)', 0) > 0:
-                qty_str = f"{int(inv_data['Quantity (Pcs)'])} Pcs"
-            else:
-                qty_str = f"{inv_data['Meter Amount']}m / {inv_data['Yard Amount']}yd"
-                
-            warranty_str = inv_data.get('Warranty', 'N/A')
-            
-            invoice_html = f"""
-            <div style="border: 2px solid #4CAF50; padding: 25px; border-radius: 10px; background-color: #1e1e1e; color: #ffffff; max-width: 550px; margin: auto; font-family: sans-serif;">
-                <h2 style="text-align: center; color: #4CAF50; margin-bottom: 2px;">SAPPHIRE COLLECTION</h2>
-                <p style="text-align: center; margin-top: 0; font-size: 13px; color: #ddd;">Electronics & Textiles Store</p>
-                <p style="text-align: center; font-weight: bold; font-size: 15px; text-decoration: underline;">OFFICIAL INVOICE & RECEIPT</p>
-                <hr style="border: 1px dashed #4CAF50;">
-                <table style="width: 100%; font-size: 14px; margin-bottom: 10px;">
-                    <tr>
-                        <td><strong>Date:</strong> {inv_data['Date']}</td>
-                        <td style="text-align: right;"><strong>Time:</strong> {inv_data['Time']}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Invoice No:</strong> INV-{sel_idx+1000}</td>
-                        <td style="text-align: right;"><strong>Warranty:</strong> {warranty_str}</td>
-                    </tr>
-                </table>
-                <hr style="border: 1px dashed #4CAF50;">
-                <table style="width: 100%; text-align: left; border-collapse: collapse; margin-top: 10px;">
-                    <tr style="border-bottom: 1px solid #555;">
-                        <th style="padding: 8px;">Item Description</th>
-                        <th style="padding: 8px;">Code</th>
-                        <th style="padding: 8px;">Qty</th>
-                        <th style="padding: 8px; text-align: right;">Price</th>
-                    </tr>
-                    <tr>
-                        <td style="padding: 10px 8px;">{inv_data['Product Name']}</td>
-                        <td style="padding: 10px 8px;">{inv_data['Code']}</td>
-                        <td style="padding: 10px 8px;">{qty_str}</td>
-                        <td style="padding: 10px 8px; text-align: right;">Rs. {inv_data['One Product Price']:,.2f}</td>
-                    </tr>
-                </table>
-                <hr style="border: 1px dashed #4CAF50;">
-                <h3 style="text-align: right; color: #4CAF50; margin-top: 10px;">Total Amount: Rs. {inv_data['Total Price']:,.2f}</h3>
-                
-                <br>
-                <table style="width: 100%; margin-top: 30px; border-collapse: collapse;">
-                    <tr>
-                        <td style="width: 50%; text-align: center; vertical-align: bottom;">
-                            <div style="border: 1px dashed #777; padding: 25px 10px; border-radius: 5px; width: 80%; margin: 0 auto;">
-                                <span style="color: #aaa; font-size: 12px;">(Shop Seal / Stamp)</span>
-                                <br><br>
-                                <span style="font-size: 13px;">කඩේ සීල් එක සඳහා</span>
-                            </div>
-                        </td>
-                        <td style="width: 50%; text-align: center; vertical-align: bottom;">
-                            <br><br><br>
-                            <div style="border-bottom: 1px solid #ffffff; width: 85%; margin: 0 auto 5px auto;"></div>
-                            <span style="font-weight: bold; font-size: 13px;">Authorized Signature</span><br>
-                            <span style="font-size: 11px; color: #aaa;">(බලධාරියාගේ අත්සන)</span>
-                        </td>
-                    </tr>
-                </table>
-                <br>
-                <p style="text-align: center; font-size: 11px; color: #aaa; margin-bottom: 0;">Thank You for Shopping with Sapphire Collection!</p>
-            </div>
-            """
-            
-            st.markdown(invoice_html, unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            st.download_button(
-                label="📥 Download Invoice (HTML)",
-                data=invoice_html,
-                file_name=f"Invoice_{inv_data['Code']}_{inv_data['Date']}.html",
-                mime="text/html",
-                use_container_width=True
-            )
+            st.info("ණය හිඟ මුදල් නොමැත.")
