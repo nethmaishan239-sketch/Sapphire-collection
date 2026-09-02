@@ -169,56 +169,72 @@ else:
         if df_products.empty:
             st.warning("පළමුව 'Product' අංශයෙන් භාණ්ඩ ඇතුළත් කරන්න.")
         else:
-            product_options = df_products["Code"].astype(str) + " - " + df_products["Product Name"]
-            selected_prod_str = st.selectbox("Product Name / Code තෝරන්න:", product_options)
+            # 🔍 Product Search Bar
+            search_query = st.text_input("🔍 Product Name හෝ Code එක ගසා සොයන්න (Search):", "").strip()
             
-            selected_code = selected_prod_str.split(" - ")[0]
-            product_row = df_products[df_products["Code"].astype(str) == selected_code].iloc[0]
-            
-            p_name = product_row["Product Name"]
-            p_price = float(product_row["One Product Price"])
-            curr_meter = float(product_row["Total Meter"])
-            curr_yard = float(product_row["Total Yard"])
-            
-            st.info(f"📌 **තෝරාගත් භාණ්ඩය:** {p_name} | **Stock:** {curr_meter} m, {curr_yard} yd")
-            
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                sell_meter = st.number_input("Meter Amount:", min_value=0.0, step=0.1)
-            with col_b2:
-                sell_yard = st.number_input("Yard Amount:", min_value=0.0, step=0.1)
+            # Filter products based on search query
+            if search_query:
+                filtered_products = df_products[
+                    df_products["Code"].astype(str).str.contains(search_query, case=False, na=False) |
+                    df_products["Product Name"].str.contains(search_query, case=False, na=False)
+                ]
+            else:
+                filtered_products = df_products
+
+            if filtered_products.empty:
+                st.error("ඔබ සෙවූ Code එකට හෝ Name එකට අදාළ Product එකක් හමු නොවීය.")
+            else:
+                product_options = filtered_products["Code"].astype(str) + " - " + filtered_products["Product Name"]
+                selected_prod_str = st.selectbox("Product එක තෝරන්න (Select Product):", product_options)
                 
-            unit_price = st.number_input("One Product Price (Rs.):", value=p_price, min_value=0.0, step=10.0)
-            total_price = (sell_meter + sell_yard) * unit_price
-            
-            st.markdown(f"### 💵 Total Price: **Rs. {total_price:,.2f}**")
-            
-            if st.button("🛒 Print & Issue Bill", type="primary"):
-                if sell_meter <= 0 and sell_yard <= 0:
-                    st.error("Meter හෝ Yard ප්‍රමාණයක් ඇතුළත් කරන්න.")
-                elif sell_meter > curr_meter or sell_yard > curr_yard:
-                    st.error("තොගයේ ප්‍රමාණවත් තරම් ප්‍රමාණ නොමැත!")
-                else:
-                    df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Meter"] = curr_meter - sell_meter
-                    df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Yard"] = curr_yard - sell_yard
-                    save_products(df_products)
+                selected_code = selected_prod_str.split(" - ")[0]
+                product_row = filtered_products[filtered_products["Code"].astype(str) == selected_code].iloc[0]
+                
+                p_name = product_row["Product Name"]
+                p_price = float(product_row["One Product Price"])
+                curr_meter = float(product_row["Total Meter"])
+                curr_yard = float(product_row["Total Yard"])
+                
+                st.info(f"📌 **තෝරාගත් භාණ්ඩය:** {p_name} | **Stock:** {curr_meter} m, {curr_yard} yd")
+                
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    sell_meter = st.number_input("Meter Amount:", min_value=0.0, step=0.1)
+                with col_b2:
+                    sell_yard = st.number_input("Yard Amount:", min_value=0.0, step=0.1)
                     
-                    df_sales = load_sales()
-                    now = datetime.now()
-                    new_sale = pd.DataFrame([{
-                        "Date": now.strftime("%Y-%m-%d"),
-                        "Time": now.strftime("%H:%M:%S"),
-                        "Product Name": p_name,
-                        "Code": selected_code,
-                        "Meter Amount": sell_meter,
-                        "Yard Amount": sell_yard,
-                        "One Product Price": unit_price,
-                        "Total Price": total_price
-                    }])
-                    df_sales = pd.concat([df_sales, new_sale], ignore_index=True)
-                    save_sales(df_sales)
-                    
-                    st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
+                unit_price = st.number_input("One Product Price (Rs.):", value=p_price, min_value=0.0, step=10.0)
+                total_price = (sell_meter + sell_yard) * unit_price
+                
+                st.markdown(f"### 💵 Total Price: **Rs. {total_price:,.2f}**")
+                
+                if st.button("🛒 Print & Issue Bill", type="primary"):
+                    if sell_meter <= 0 and sell_yard <= 0:
+                        st.error("Meter හෝ Yard ප්‍රමාණයක් ඇතුළත් කරන්න.")
+                    elif sell_meter > curr_meter or sell_yard > curr_yard:
+                        st.error("තොගයේ ප්‍රමාණවත් තරම් ප්‍රමාණ නොමැත!")
+                    else:
+                        df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Meter"] = curr_meter - sell_meter
+                        df_products.loc[df_products["Code"].astype(str) == selected_code, "Total Yard"] = curr_yard - sell_yard
+                        save_products(df_products)
+                        
+                        df_sales = load_sales()
+                        now = datetime.now()
+                        new_sale = pd.DataFrame([{
+                            "Date": now.strftime("%Y-%m-%d"),
+                            "Time": now.strftime("%H:%M:%S"),
+                            "Product Name": p_name,
+                            "Code": selected_code,
+                            "Meter Amount": sell_meter,
+                            "Yard Amount": sell_yard,
+                            "One Product Price": unit_price,
+                            "Total Price": total_price
+                        }])
+                        df_sales = pd.concat([df_sales, new_sale], ignore_index=True)
+                        save_sales(df_sales)
+                        
+                        st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
+                        st.rerun()
 
         st.subheader("📋 Bill Issue Records")
         df_sales = load_sales()
