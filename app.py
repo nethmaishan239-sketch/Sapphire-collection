@@ -89,17 +89,14 @@ else:
         st.markdown("<br><br>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
-        
         with col1:
             if st.button("📦\n\nProduct", use_container_width=True):
                 st.session_state["current_page"] = "Product"
                 st.rerun()
-                
         with col2:
             if st.button("🧾\n\nBill Issue", use_container_width=True):
                 st.session_state["current_page"] = "Bill Issue"
                 st.rerun()
-                
         with col3:
             if st.button("📊\n\nStock", use_container_width=True):
                 st.session_state["current_page"] = "Stock"
@@ -107,10 +104,14 @@ else:
                 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        col_center1, col_center2, col_center3 = st.columns([1, 2, 1])
-        with col_center2:
+        col4, col5 = st.columns(2)
+        with col4:
             if st.button("📈\n\nToday sell", use_container_width=True):
                 st.session_state["current_page"] = "Today sell"
+                st.rerun()
+        with col5:
+            if st.button("📄\n\nInvoice", use_container_width=True):
+                st.session_state["current_page"] = "Invoice"
                 st.rerun()
 
     # ==================== 3. PRODUCT PAGE ====================
@@ -218,13 +219,6 @@ else:
                     save_sales(df_sales)
                     
                     st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
-                    st.markdown("---")
-                    st.subheader("🧾 Bill Preview")
-                    st.write(f"**Product Name:** {p_name}")
-                    st.write(f"**Code:** {selected_code}")
-                    st.write(f"**Meter & Yard Amount:** {sell_meter} m / {sell_yard} yd")
-                    st.write(f"**One Product Price:** Rs. {unit_price:,.2f}")
-                    st.write(f"**Total Price:** Rs. {total_price:,.2f}")
 
         st.subheader("📋 Bill Issue Records")
         df_sales = load_sales()
@@ -296,3 +290,61 @@ else:
                 st.rerun()
         else:
             st.info("අද දින තවමත් අලෙවියන් සිදු වී නොමැත.")
+
+    # ==================== 7. INVOICE PAGE ====================
+    elif st.session_state["current_page"] == "Invoice":
+        st.title("📄 Invoice")
+        df_sales = load_sales()
+        
+        if df_sales.empty:
+            st.warning("දැනට නිකුත් කරන ලද බිල්පත් නොමැත.")
+        else:
+            sale_options = [
+                f"ID #{idx} | {row['Date']} {row['Time']} | {row['Product Name']} (Rs. {row['Total Price']:,.2f})"
+                for idx, row in df_sales.iterrows()
+            ]
+            selected_invoice = st.selectbox("Print / Download කිරීමට Invoice එකක් තෝරන්න:", sale_options)
+            
+            sel_idx = int(selected_invoice.split(" | ")[0].replace("ID #", ""))
+            inv_data = df_sales.loc[sel_idx]
+            
+            # Formatted HTML Receipt View
+            invoice_html = f"""
+            <div style="border: 2px solid #4CAF50; padding: 20px; border-radius: 10px; background-color: #1e1e1e; color: #ffffff; max-width: 500px; margin: auto;">
+                <h2 style="text-align: center; color: #4CAF50; margin-bottom: 5px;">SAPPHIRE COLLECTION</h2>
+                <p style="text-align: center; margin-top: 0; font-size: 14px;">Official Sales Receipt</p>
+                <hr style="border: 1px dashed #4CAF50;">
+                <p><strong>Date:</strong> {inv_data['Date']} &nbsp;&nbsp;&nbsp; <strong>Time:</strong> {inv_data['Time']}</p>
+                <p><strong>Invoice No:</strong> INV-{sel_idx+1000}</p>
+                <hr style="border: 1px dashed #4CAF50;">
+                <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                    <tr>
+                        <th style="padding: 8px; border-bottom: 1px solid #555;">Item</th>
+                        <th style="padding: 8px; border-bottom: 1px solid #555;">Code</th>
+                        <th style="padding: 8px; border-bottom: 1px solid #555;">Qty (m/yd)</th>
+                        <th style="padding: 8px; border-bottom: 1px solid #555;">Price</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px;">{inv_data['Product Name']}</td>
+                        <td style="padding: 8px;">{inv_data['Code']}</td>
+                        <td style="padding: 8px;">{inv_data['Meter Amount']}m / {inv_data['Yard Amount']}yd</td>
+                        <td style="padding: 8px;">Rs. {inv_data['One Product Price']:,.2f}</td>
+                    </tr>
+                </table>
+                <hr style="border: 1px dashed #4CAF50;">
+                <h3 style="text-align: right; color: #4CAF50;">Total Amount: Rs. {inv_data['Total Price']:,.2f}</h3>
+                <p style="text-align: center; font-size: 12px; margin-top: 20px;">Thank You for Shopping with Us!</p>
+            </div>
+            """
+            
+            st.markdown(invoice_html, unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Download Receipt Button
+            st.download_button(
+                label="📥 Download Invoice (HTML)",
+                data=invoice_html,
+                file_name=f"Invoice_{inv_data['Code']}_{inv_data['Date']}.html",
+                mime="text/html",
+                use_container_width=True
+            )
