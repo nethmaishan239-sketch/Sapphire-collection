@@ -276,10 +276,14 @@ else:
 
         if not df_products.empty:
             st.subheader("⚠️ Low Stock Alerts (තොග අඩුවී ඇති භාණ්ඩ)")
+            
+            # නිවැරදි කරන ලද Low Stock Logic එක
             low_stock = df_products[
-                (df_products["Total Meter"] <= df_products["Min Threshold"]) | 
-                (df_products["Total Quantity (Pcs)"] <= df_products["Min Threshold"])
+                ((df_products["Total Meter"] > 0) & (df_products["Total Meter"] <= df_products["Min Threshold"])) |
+                ((df_products["Total Quantity (Pcs)"] > 0) & (df_products["Total Quantity (Pcs)"] <= df_products["Min Threshold"])) |
+                ((df_products["Total Meter"] == 0) & (df_products["Total Quantity (Pcs)"] == 0))
             ]
+            
             if not low_stock.empty:
                 st.dataframe(low_stock[["Product Name", "Code", "Total Meter", "Total Quantity (Pcs)", "Min Threshold"]], use_container_width=True)
             else:
