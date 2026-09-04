@@ -6,6 +6,24 @@ from datetime import datetime, date
 # Page Configuration
 st.set_page_config(page_title="Sapphire Collection POS", layout="wide")
 
+# Streamlit Cloud Toolbar, Footer & Viewer Badges Hide කිරීම
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            [data-testid="stStatusWidget"] {visibility: hidden;}
+            .stAppToolbar {display: none !important;}
+            div[data-testid="stToolbar"] {display: none !important;}
+            div[data-testid="stDecoration"] {display: none !important;}
+            button[title="View app in Streamlit Community Cloud"] {display: none !important;}
+            div[class*="viewerBadge"] {display: none !important;}
+            div[class*="styles_viewerBadge"] {display: none !important;}
+            [data-testid="manage-app-button"] {display: none !important;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # Files for Data Persistence
 PRODUCT_FILE = "products.csv"
 SALES_FILE = "sales.csv"
@@ -230,11 +248,13 @@ else:
                     elif sell_m > curr_m or sell_y > curr_y or sell_q > curr_q:
                         st.error("තොගයේ ප්‍රමාණවත් තරම් බඩු නොමැත!")
                     else:
+                        # Stock Update
                         df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Meter"] = curr_m - sell_m
                         df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Yard"] = curr_y - sell_y
                         df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Quantity (Pcs)"] = curr_q - sell_q
                         save_data(df_products, PRODUCT_FILE)
 
+                        # Record Sale
                         now = datetime.now()
                         new_sale = {
                             "Date": now.strftime("%Y-%m-%d"), "Time": now.strftime("%H:%M:%S"),
@@ -250,11 +270,35 @@ else:
 
                         if pay_method == "Credit (ණය)" and cust_name:
                             df_cred = load_data(CREDIT_FILE)
-                            cred_row = {"Customer Name": cust_name, "Phone": cust_phone, "Due Balance": final_total, "Last Date": now.strftime("%Y-%m-%d"), "Is_Deleted": False}
-                            df_cred = pd.concat([df_cred, pd.DataFrame([cred_row])], ignore_index=True)
+                            if not df_cred.empty and cust_name in df_cred[df_cred["Is_Deleted"] == False]["Customer Name"].values:
+                                existing_due = df_cred.loc[(df_cred["Customer Name"] == cust_name) & (df_cred["Is_Deleted"] == False), "Due Balance"].values[0]
+                                df_cred.loc[(df_cred["Customer Name"] == cust_name) & (df_cred["Is_Deleted"] == False), "Due Balance"] = float(existing_due) + final_total
+                                df_cred.loc[(df_cred["Customer Name"] == cust_name) & (df_cred["Is_Deleted"] == False), "Last Date"] = now.strftime("%Y-%m-%d")
+                            else:
+                                cred_row = {"Customer Name": cust_name, "Phone": cust_phone, "Due Balance": final_total, "Last Date": now.strftime("%Y-%m-%d"), "Is_Deleted": False}
+                                df_cred = pd.concat([df_cred, pd.DataFrame([cred_row])], ignore_index=True)
                             save_data(df_cred, CREDIT_FILE)
 
                         st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
+
+                        # 🖨️ Thermal POS Receipt Display
+                        st.markdown("---")
+                        st.subheader("🖨️ Receipt Preview")
+                        receipt_html = f"""
+                        <div style="width: 280px; background: white; color: black; padding: 12px; font-family: monospace; font-size: 12px; border: 1px solid #ccc; border-radius: 5px; margin: auto;">
+                            <h3 style="text-align:center; margin:0;">SAPPHIRE COLLECTION</h3>
+                            <p style="text-align:center; margin:2px 0;">Electronics & Textiles</p>
+                            <p style="text-align:center; margin:0;">--------------------------------</p>
+                            <p style="margin: 4px 0;"><b>Date:</b> {now.strftime("%Y-%m-%d %H:%M")}<br><b>Pay Method:</b> {pay_method}</p>
+                            <p style="text-align:center; margin:0;">--------------------------------</p>
+                            <p style="margin: 4px 0;"><b>Item:</b> {prod_row['Product Name']}<br><b>Qty:</b> {unit_qty}<br><b>Price:</b> Rs. {sell_price:,.2f}</p>
+                            <p style="margin: 4px 0;"><b>Discount:</b> Rs. {discount_rs:,.2f}</p>
+                            <h4 style="margin: 6px 0;">TOTAL: Rs. {final_total:,.2f}</h4>
+                            <p style="text-align:center; margin:0;">--------------------------------</p>
+                            <p style="text-align:center; margin:4px 0;">Thank You! Come Again.</p>
+                        </div>
+                        """
+                        st.markdown(receipt_html, unsafe_allow_html=True)
 
     # ==================== 5. STOCK & ALERTS ====================
     elif st.session_state["current_page"] == "Stock":
@@ -358,12 +402,40 @@ else:
 
         if not active_cred.empty:
             st.dataframe(active_cred.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-            sel_cust = st.selectbox("Settle Debt for Customer:", active_cred["Customer Name"].unique())
-            if st.button("Settle / Clear Credit"):
-                df_cred.loc[df_cred["Customer Name"] == sel_cust, "Is_Deleted"] = True
-                save_data(df_cred, CREDIT_FILE)
-                st.success("ණය ගෙවා අවසන් ලෙස සටහන් කර Recycle Bin එකට යවන ලදී!")
-                st.rerun()
+            
+            st.markdown("---")
+            st.subheader("💵 Debt Payment / Settle (ණය මුදල් ලබාගැනීම)")
+            
+            sel_cust = st.selectbox("Customer තෝරන්න:", active_cred["Customer Name"].unique())
+            cust_row = active_cred[active_cred["Customer Name"] == sel_cust].iloc[0]
+            current_due = float(cust_row["Due Balance"])
+            
+            st.info(f"👤 Customer: **{sel_cust}** | 💳 Current Due Balance: **Rs. {current_due:,.2f}**")
+            
+            col_pay1, col_pay2 = st.columns(2)
+            with col_pay1:
+                pay_amount = st.number_input("ලබාදුන් මුදල (Rs.):", min_value=0.0, max_value=current_due, step=100.0)
+            with col_pay2:
+                settle_option = st.radio("ගෙවීම් වර්ගය:", ["Partial Payment (කොටසක් ගෙවීම)", "Full Settle (සම්පූර්ණයෙන්ම පියවීම)"])
+
+            if st.button("✅ Record Payment / Settle", type="primary"):
+                now_str = datetime.now().strftime("%Y-%m-%d")
+                
+                if "Full Settle" in settle_option or pay_amount >= current_due:
+                    df_cred.loc[df_cred["Customer Name"] == sel_cust, "Is_Deleted"] = True
+                    save_data(df_cred, CREDIT_FILE)
+                    st.success(f"🎉 {sel_cust} ගේ ණය මුදල සම්පූර්ණයෙන්ම ගෙවා අවසන් කර Recycle Bin එකට යවන ලදී!")
+                    st.rerun()
+                else:
+                    if pay_amount > 0:
+                        new_balance = current_due - pay_amount
+                        df_cred.loc[df_cred["Customer Name"] == sel_cust, "Due Balance"] = new_balance
+                        df_cred.loc[df_cred["Customer Name"] == sel_cust, "Last Date"] = now_str
+                        save_data(df_cred, CREDIT_FILE)
+                        st.success(f"✅ Rs. {pay_amount:,.2f} ක ගෙවීම සටහන් විය. ඉතිරි ණය මුදල: Rs. {new_balance:,.2f}")
+                        st.rerun()
+                    else:
+                        st.error("කරුණාකර ගෙවූ මුදල ඇතුළත් කරන්න.")
         else:
             st.info("ණය හිඟ මුදල් නොමැත.")
 
