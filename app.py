@@ -21,7 +21,7 @@ def init_files():
         df_p.to_csv(PRODUCT_FILE, index=False)
     
     if not os.path.exists(SALES_FILE) or os.stat(SALES_FILE).st_size == 0:
-        df_s = pd.DataFrame(columns=["Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", "Cost Price", "Selling Price", "Discount", "Points Used", "Total Price", "Profit", "Payment Method", "Customer", "Is_Deleted"])
+        df_s = pd.DataFrame(columns=["Invoice ID", "Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", "Cost Price", "Selling Price", "Discount", "Points Used", "Total Price", "Profit", "Payment Method", "Customer", "Is_Deleted"])
         df_s.to_csv(SALES_FILE, index=False)
 
     if not os.path.exists(EXPENSES_FILE) or os.stat(EXPENSES_FILE).st_size == 0:
@@ -62,6 +62,8 @@ if "user_role" not in st.session_state:
     st.session_state["user_role"] = None
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "Main Menu"
+if "cart" not in st.session_state:
+    st.session_state["cart"] = []
 
 # ==================== 🔒 1. LOGIN PAGE ====================
 if not st.session_state["logged_in"]:
@@ -211,7 +213,7 @@ else:
                         st.success("Product එක Recycle Bin එකට යවන ලදී!")
                         st.rerun()
 
-    # ==================== 4. BILL ISSUE PAGE ====================
+    # ==================== 4. BILL ISSUE PAGE (MULTIPLE ITEMS / CART) ====================
     elif st.session_state["current_page"] == "Bill Issue":
         st.title("🧾 Bill Issue & POS")
         df_products = load_data(PRODUCT_FILE)
@@ -222,82 +224,152 @@ else:
         if active_products.empty:
             st.warning("පළමුව 'Product Management' අංශයෙන් භාණ්ඩ ඇතුළත් කරන්න.")
         else:
-            search_query = st.text_input("🔍 Scan Barcode or Type Product Name/Code:", "").strip()
-            filtered = active_products if not search_query else active_products[
-                active_products["Code"].astype(str).str.contains(search_query, case=False, na=False) |
-                active_products["Product Name"].str.contains(search_query, case=False, na=False)
-            ]
+            col_left, col_right = st.columns([1, 1])
 
-            if not filtered.empty:
-                prod_opts = filtered["Code"].astype(str) + " - " + filtered["Product Name"]
-                sel_prod = st.selectbox("Product එක තෝරන්න:", prod_opts)
-                sel_code = sel_prod.split(" - ")[0]
-                prod_row = filtered[filtered["Code"].astype(str) == sel_code].iloc[0]
+            # Left Column: Add Items to Cart
+            with col_left:
+                st.subheader("➕ Cart එකට Item එකතු කරන්න")
+                search_query = st.text_input("🔍 Scan Barcode or Type Product Name/Code:", "").strip()
+                filtered = active_products if not search_query else active_products[
+                    active_products["Code"].astype(str).str.contains(search_query, case=False, na=False) |
+                    active_products["Product Name"].str.contains(search_query, case=False, na=False)
+                ]
 
-                cost_price = float(prod_row.get("Cost Price", 0))
-                sell_price = float(prod_row.get("Selling Price", 0))
-                curr_m = float(prod_row.get("Total Meter", 0))
-                curr_y = float(prod_row.get("Total Yard", 0))
-                curr_q = float(prod_row.get("Total Quantity (Pcs)", 0))
+                if not filtered.empty:
+                    prod_opts = filtered["Code"].astype(str) + " - " + filtered["Product Name"]
+                    sel_prod = st.selectbox("Product එක තෝරන්න:", prod_opts)
+                    sel_code = sel_prod.split(" - ")[0]
+                    prod_row = filtered[filtered["Code"].astype(str) == sel_code].iloc[0]
 
-                st.info(f"📌 Stock: {curr_m}m | {curr_y}yd | {int(curr_q)} Pcs | Price: Rs. {sell_price:,.2f}")
+                    cost_price = float(prod_row.get("Cost Price", 0))
+                    sell_price = float(prod_row.get("Selling Price", 0))
+                    curr_m = float(prod_row.get("Total Meter", 0))
+                    curr_y = float(prod_row.get("Total Yard", 0))
+                    curr_q = float(prod_row.get("Total Quantity (Pcs)", 0))
 
-                col_b1, col_b2, col_b3 = st.columns(3)
-                with col_b1: sell_m = st.number_input("Meter Amount:", min_value=0.0, step=0.1)
-                with col_b2: sell_y = st.number_input("Yard Amount:", min_value=0.0, step=0.1)
-                with col_b3: sell_q = st.number_input("Quantity Pcs:", min_value=0.0, step=1.0)
+                    st.info(f"📌 Available Stock: {curr_m}m | {curr_y}yd | {int(curr_q)} Pcs | Price: Rs. {sell_price:,.2f}")
 
-                # Customer & Loyalty Points
-                st.subheader("👤 Customer & Loyalty Points")
-                cust_names = ["Guest Customer"] + active_cust["Customer Name"].tolist() if not active_cust.empty else ["Guest Customer"]
-                sel_cust_name = st.selectbox("Select Customer:", cust_names)
-                
-                avail_points = 0
-                points_to_use = 0
-                if sel_cust_name != "Guest Customer" and not active_cust.empty:
-                    cust_row = active_cust[active_cust["Customer Name"] == sel_cust_name].iloc[0]
-                    avail_points = float(cust_row.get("Loyalty Points", 0))
-                    st.write(f"🌟 Available Loyalty Points: **{avail_points:.0f} Points** (1 Point = Rs. 1)")
-                    use_points = st.checkbox("Redeem Loyalty Points as Discount")
-                    if use_points:
-                        points_to_use = st.number_input("Points to Redeem:", min_value=0.0, max_value=avail_points, step=1.0)
-
-                col_o1, col_o2 = st.columns(2)
-                with col_o1:
-                    disc_type = st.radio("Discount Type:", ["Flat Amount (Rs.)", "Percentage (%)"], horizontal=True)
-                    disc_val = st.number_input("Discount Value:", min_value=0.0)
-                with col_o2:
-                    pay_method = st.selectbox("Payment Method:", ["Cash", "Card", "Online Transfer / QR", "Credit (ණය)"])
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1: sell_m = st.number_input("Meter Amount:", min_value=0.0, step=0.1)
+                    with col_b2: sell_y = st.number_input("Yard Amount:", min_value=0.0, step=0.1)
+                    with col_b3: sell_q = st.number_input("Quantity Pcs:", min_value=0.0, step=1.0)
+                    
                     warranty_val = st.selectbox("Warranty:", ["No Warranty", "6 Months", "1 Year", "2 Years", "3 Years"])
 
-                cust_phone = ""
-                if pay_method == "Credit (ණය)":
-                    cust_phone = st.text_input("Customer Phone Number:")
+                    unit_qty = sell_m + sell_y + sell_q
+                    item_total = unit_qty * sell_price
 
-                unit_qty = sell_m + sell_y + sell_q
-                subtotal = unit_qty * sell_price
-                
-                discount_rs = disc_val if "Flat" in disc_type else (subtotal * disc_val / 100.0)
-                discount_rs += points_to_use # Adding points discount
-                final_total = max(0.0, subtotal - discount_rs)
-                net_profit = final_total - (unit_qty * cost_price)
+                    if st.button("🛒 Add to Cart"):
+                        if unit_qty <= 0:
+                            st.error("ප්‍රමාණයක් ඇතුළත් කරන්න.")
+                        elif sell_m > curr_m or sell_y > curr_y or sell_q > curr_q:
+                            st.error("තොගයේ ප්‍රමාණවත් තරම් බඩු නොමැත!")
+                        else:
+                            cart_item = {
+                                "Code": sel_code,
+                                "Product Name": prod_row["Product Name"],
+                                "Cost Price": cost_price,
+                                "Selling Price": sell_price,
+                                "Meter Amount": sell_m,
+                                "Yard Amount": sell_y,
+                                "Quantity (Pcs)": sell_q,
+                                "Total Qty": unit_qty,
+                                "Warranty": warranty_val,
+                                "Total Price": item_total,
+                                "Profit": item_total - (unit_qty * cost_price)
+                            }
+                            st.session_state["cart"].append(cart_item)
+                            st.success(f"{prod_row['Product Name']} Cart එකට එකතු විය!")
+                            st.rerun()
 
-                # Earned points (1 point per Rs. 100 spent)
-                earned_points = int(final_total // 100)
+            # Right Column: Cart Display & Checkout
+            with col_right:
+                st.subheader("🛍️ Current Cart (එකතු කළ භාණ්ඩ)")
+                if len(st.session_state["cart"]) > 0:
+                    cart_df = pd.DataFrame(st.session_state["cart"])
+                    st.dataframe(cart_df[["Product Name", "Total Qty", "Selling Price", "Warranty", "Total Price"]], use_container_width=True)
 
-                st.markdown(f"### 💵 Net Total: **Rs. {final_total:,.2f}** (Total Discount: Rs. {discount_rs:,.2f})")
+                    if st.button("🗑️ Clear Cart"):
+                        st.session_state["cart"] = []
+                        st.rerun()
 
-                if st.button("🛒 Complete Sale & Issue Bill", type="primary"):
-                    if unit_qty <= 0:
-                        st.error("ප්‍රමාණයක් ඇතුළත් කරන්න.")
-                    elif sell_m > curr_m or sell_y > curr_y or sell_q > curr_q:
-                        st.error("තොගයේ ප්‍රමාණවත් තරම් බඩු නොමැත!")
-                    else:
-                        # Update Stock
-                        df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Meter"] = curr_m - sell_m
-                        df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Yard"] = curr_y - sell_y
-                        df_products.loc[df_products["Code"].astype(str) == sel_code, "Total Quantity (Pcs)"] = curr_q - sell_q
+                    subtotal = cart_df["Total Price"].sum()
+                    st.markdown(f"#### 💰 Subtotal: **Rs. {subtotal:,.2f}**")
+
+                    # Customer & Payment Options
+                    st.markdown("---")
+                    st.subheader("👤 Customer & Payment")
+                    cust_names = ["Guest Customer"] + active_cust["Customer Name"].tolist() if not active_cust.empty else ["Guest Customer"]
+                    sel_cust_name = st.selectbox("Select Customer:", cust_names)
+
+                    avail_points = 0
+                    points_to_use = 0
+                    if sel_cust_name != "Guest Customer" and not active_cust.empty:
+                        cust_row = active_cust[active_cust["Customer Name"] == sel_cust_name].iloc[0]
+                        avail_points = float(cust_row.get("Loyalty Points", 0))
+                        st.write(f"🌟 Available Loyalty Points: **{avail_points:.0f} Points**")
+                        use_points = st.checkbox("Redeem Points as Discount")
+                        if use_points:
+                            points_to_use = st.number_input("Points to Redeem:", min_value=0.0, max_value=avail_points, step=1.0)
+
+                    col_o1, col_o2 = st.columns(2)
+                    with col_o1:
+                        disc_type = st.radio("Discount Type:", ["Flat Amount (Rs.)", "Percentage (%)"], horizontal=True)
+                        disc_val = st.number_input("Discount Value:", min_value=0.0)
+                    with col_o2:
+                        pay_method = st.selectbox("Payment Method:", ["Cash", "Card", "Online Transfer / QR", "Credit (ණය)"])
+
+                    cust_phone = ""
+                    if pay_method == "Credit (ණය)":
+                        cust_phone = st.text_input("Customer Phone Number:")
+
+                    discount_rs = disc_val if "Flat" in disc_type else (subtotal * disc_val / 100.0)
+                    discount_rs += points_to_use
+                    final_total = max(0.0, subtotal - discount_rs)
+                    earned_points = int(final_total // 100)
+
+                    st.markdown(f"### 💵 Net Total: **Rs. {final_total:,.2f}**")
+
+                    if st.button("✅ Complete Sale & Print Bill", type="primary", use_container_width=True):
+                        invoice_id = datetime.now().strftime("INV%Y%m%d%H%M%S")
+                        now = datetime.now()
+
+                        df_sales = load_data(SALES_FILE)
+
+                        # Save Each Cart Item & Deduct Stock
+                        for item in st.session_state["cart"]:
+                            # Deduct Stock
+                            p_code_val = item["Code"]
+                            p_row = df_products[df_products["Code"].astype(str) == p_code_val].iloc[0]
+                            df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Meter"] = max(0, float(p_row["Total Meter"]) - item["Meter Amount"])
+                            df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Yard"] = max(0, float(p_row["Total Yard"]) - item["Yard Amount"])
+                            df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Quantity (Pcs)"] = max(0, float(p_row["Total Quantity (Pcs)"]) - item["Quantity (Pcs)"])
+
+                            # Save Sale
+                            new_sale = {
+                                "Invoice ID": invoice_id,
+                                "Date": now.strftime("%Y-%m-%d"),
+                                "Time": now.strftime("%H:%M:%S"),
+                                "Product Name": item["Product Name"],
+                                "Code": item["Code"],
+                                "Meter Amount": item["Meter Amount"],
+                                "Yard Amount": item["Yard Amount"],
+                                "Quantity (Pcs)": item["Quantity (Pcs)"],
+                                "Warranty": item["Warranty"],
+                                "Cost Price": item["Cost Price"],
+                                "Selling Price": item["Selling Price"],
+                                "Discount": discount_rs,
+                                "Points Used": points_to_use,
+                                "Total Price": item["Total Price"],
+                                "Profit": item["Profit"],
+                                "Payment Method": pay_method,
+                                "Customer": sel_cust_name,
+                                "Is_Deleted": False
+                            }
+                            df_sales = pd.concat([df_sales, pd.DataFrame([new_sale])], ignore_index=True)
+
                         save_data(df_products, PRODUCT_FILE)
+                        save_data(df_sales, SALES_FILE)
 
                         # Update Customer Loyalty Points
                         if sel_cust_name != "Guest Customer" and not active_cust.empty:
@@ -305,20 +377,7 @@ else:
                             df_cust.loc[df_cust["Customer Name"] == sel_cust_name, "Loyalty Points"] = new_points
                             save_data(df_cust, CUSTOMER_FILE)
 
-                        # Record Sale
-                        now = datetime.now()
-                        new_sale = {
-                            "Date": now.strftime("%Y-%m-%d"), "Time": now.strftime("%H:%M:%S"),
-                            "Product Name": prod_row["Product Name"], "Code": sel_code,
-                            "Meter Amount": sell_m, "Yard Amount": sell_y, "Quantity (Pcs)": sell_q,
-                            "Warranty": warranty_val, "Cost Price": cost_price, "Selling Price": sell_price,
-                            "Discount": discount_rs, "Points Used": points_to_use, "Total Price": final_total, 
-                            "Profit": net_profit, "Payment Method": pay_method, "Customer": sel_cust_name, "Is_Deleted": False
-                        }
-                        df_sales = load_data(SALES_FILE)
-                        df_sales = pd.concat([df_sales, pd.DataFrame([new_sale])], ignore_index=True)
-                        save_data(df_sales, SALES_FILE)
-
+                        # Handle Credit Record
                         if pay_method == "Credit (ණය)" and sel_cust_name:
                             df_cred = load_data(CREDIT_FILE)
                             if not df_cred.empty and sel_cust_name in df_cred[df_cred["Is_Deleted"] == False]["Customer Name"].values:
@@ -330,19 +389,26 @@ else:
                                 df_cred = pd.concat([df_cred, pd.DataFrame([cred_row])], ignore_index=True)
                             save_data(df_cred, CREDIT_FILE)
 
-                        st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
+                        # Build HTML Receipt with Multiple Items
+                        items_html = ""
+                        for item in st.session_state["cart"]:
+                            items_html += f"""
+                            <div style="display:flex; justify-content:space-between; margin: 3px 0;">
+                                <span><b>{item['Product Name']}</b> (x{item['Total Qty']})</span>
+                                <span>Rs. {item['Total Price']:,.2f}</span>
+                            </div>
+                            """
 
-                        # 🖨️ Thermal POS Receipt Display & Direct Print Button
-                        st.markdown("---")
-                        st.subheader("🖨️ Receipt Preview")
                         receipt_html = f"""
                         <div id="printableArea" style="width: 280px; background: white; color: black; padding: 12px; font-family: monospace; font-size: 12px; border: 1px solid #ccc; border-radius: 5px; margin: auto;">
                             <h3 style="text-align:center; margin:0;">SAPPHIRE COLLECTION</h3>
                             <p style="text-align:center; margin:2px 0;">Electronics & Textiles</p>
                             <p style="text-align:center; margin:0;">--------------------------------</p>
-                            <p style="margin: 4px 0;"><b>Date:</b> {now.strftime("%Y-%m-%d %H:%M")}<br><b>Customer:</b> {sel_cust_name}<br><b>Pay Method:</b> {pay_method}</p>
+                            <p style="margin: 4px 0;"><b>Invoice:</b> {invoice_id}<br><b>Date:</b> {now.strftime("%Y-%m-%d %H:%M")}<br><b>Customer:</b> {sel_cust_name}<br><b>Pay Method:</b> {pay_method}</p>
                             <p style="text-align:center; margin:0;">--------------------------------</p>
-                            <p style="margin: 4px 0;"><b>Item:</b> {prod_row['Product Name']}<br><b>Qty:</b> {unit_qty}<br><b>Price:</b> Rs. {sell_price:,.2f}</p>
+                            {items_html}
+                            <p style="text-align:center; margin:0;">--------------------------------</p>
+                            <p style="margin: 4px 0;"><b>Subtotal:</b> Rs. {subtotal:,.2f}</p>
                             <p style="margin: 4px 0;"><b>Discount:</b> Rs. {discount_rs:,.2f}</p>
                             <h4 style="margin: 6px 0;">TOTAL: Rs. {final_total:,.2f}</h4>
                             <p style="text-align:center; margin:0;">--------------------------------</p>
@@ -354,7 +420,13 @@ else:
                             <button onclick="window.print()" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ Print Receipt</button>
                         </div>
                         """
-                        st.components.v1.html(receipt_html, height=350)
+                        
+                        st.session_state["cart"] = [] # Reset Cart
+                        st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
+                        st.components.v1.html(receipt_html, height=420)
+
+                else:
+                    st.info("Cart එක හිස්ව පවතී. භාණ්ඩ එකතු කරන්න.")
 
     # ==================== 5. CUSTOMER & LOYALTY ====================
     elif st.session_state["current_page"] == "Customers":
