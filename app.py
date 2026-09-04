@@ -178,9 +178,12 @@ else:
                 p_sup = st.selectbox("Supplier", active_sups)
 
                 col_p1, col_p2, col_p3 = st.columns(3)
-                with col_p1: p_meter = st.number_input("Total Meter", min_value=0.0, step=0.5)
-                with col_p2: p_yard = st.number_input("Total Yard", min_value=0.0, step=0.5)
-                with col_p3: p_qty = st.number_input("Quantity (Pcs)", min_value=0.0, step=1.0)
+                with col_p1: 
+                    p_meter = st.number_input("Total Meter", min_value=0.0, step=0.5, key="p_meter_input")
+                with col_p2: 
+                    p_yard = st.number_input("Total Yard", min_value=0.0, step=0.5, key="p_yard_input")
+                with col_p3: 
+                    p_qty = st.number_input("Quantity (Pcs)", min_value=0.0, step=1.0, key="p_qty_input")
                 
                 p_min = st.number_input("⚠️ Low Stock Warning Threshold", min_value=1.0, value=5.0)
 
@@ -213,7 +216,7 @@ else:
                         st.success("Product එක Recycle Bin එකට යවන ලදී!")
                         st.rerun()
 
-    # ==================== 4. BILL ISSUE PAGE (MULTIPLE ITEMS / CART) ====================
+    # ==================== 4. BILL ISSUE PAGE ====================
     elif st.session_state["current_page"] == "Bill Issue":
         st.title("🧾 Bill Issue & POS")
         df_products = load_data(PRODUCT_FILE)
@@ -226,7 +229,6 @@ else:
         else:
             col_left, col_right = st.columns([1, 1])
 
-            # Left Column: Add Items to Cart
             with col_left:
                 st.subheader("➕ Cart එකට Item එකතු කරන්න")
                 search_query = st.text_input("🔍 Scan Barcode or Type Product Name/Code:", "").strip()
@@ -282,7 +284,6 @@ else:
                             st.success(f"{prod_row['Product Name']} Cart එකට එකතු විය!")
                             st.rerun()
 
-            # Right Column: Cart Display & Checkout
             with col_right:
                 st.subheader("🛍️ Current Cart (එකතු කළ භාණ්ඩ)")
                 if len(st.session_state["cart"]) > 0:
@@ -296,7 +297,6 @@ else:
                     subtotal = cart_df["Total Price"].sum()
                     st.markdown(f"#### 💰 Subtotal: **Rs. {subtotal:,.2f}**")
 
-                    # Customer & Payment Options
                     st.markdown("---")
                     st.subheader("👤 Customer & Payment")
                     cust_names = ["Guest Customer"] + active_cust["Customer Name"].tolist() if not active_cust.empty else ["Guest Customer"]
@@ -336,16 +336,13 @@ else:
 
                         df_sales = load_data(SALES_FILE)
 
-                        # Save Each Cart Item & Deduct Stock
                         for item in st.session_state["cart"]:
-                            # Deduct Stock
                             p_code_val = item["Code"]
                             p_row = df_products[df_products["Code"].astype(str) == p_code_val].iloc[0]
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Meter"] = max(0, float(p_row["Total Meter"]) - item["Meter Amount"])
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Yard"] = max(0, float(p_row["Total Yard"]) - item["Yard Amount"])
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Quantity (Pcs)"] = max(0, float(p_row["Total Quantity (Pcs)"]) - item["Quantity (Pcs)"])
 
-                            # Save Sale
                             new_sale = {
                                 "Invoice ID": invoice_id,
                                 "Date": now.strftime("%Y-%m-%d"),
@@ -371,13 +368,11 @@ else:
                         save_data(df_products, PRODUCT_FILE)
                         save_data(df_sales, SALES_FILE)
 
-                        # Update Customer Loyalty Points
                         if sel_cust_name != "Guest Customer" and not active_cust.empty:
                             new_points = avail_points - points_to_use + earned_points
                             df_cust.loc[df_cust["Customer Name"] == sel_cust_name, "Loyalty Points"] = new_points
                             save_data(df_cust, CUSTOMER_FILE)
 
-                        # Handle Credit Record
                         if pay_method == "Credit (ණය)" and sel_cust_name:
                             df_cred = load_data(CREDIT_FILE)
                             if not df_cred.empty and sel_cust_name in df_cred[df_cred["Is_Deleted"] == False]["Customer Name"].values:
@@ -389,7 +384,6 @@ else:
                                 df_cred = pd.concat([df_cred, pd.DataFrame([cred_row])], ignore_index=True)
                             save_data(df_cred, CREDIT_FILE)
 
-                        # Build HTML Receipt with Multiple Items
                         items_html = ""
                         for item in st.session_state["cart"]:
                             items_html += f"""
@@ -421,7 +415,7 @@ else:
                         </div>
                         """
                         
-                        st.session_state["cart"] = [] # Reset Cart
+                        st.session_state["cart"] = []
                         st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
                         st.components.v1.html(receipt_html, height=420)
 
@@ -577,7 +571,7 @@ else:
                 st.success("Expense එක Recycle Bin එකට යවන ලදී!")
                 st.rerun()
 
-    # ==================== 10. CREDIT BOOK (UDARA BOOK) ====================
+    # ==================== 10. CREDIT BOOK ====================
     elif st.session_state["current_page"] == "Credit Book":
         st.title("📖 Customer Credit Book (ණය පොත)")
         df_cred = load_data(CREDIT_FILE)
@@ -622,10 +616,10 @@ else:
         else:
             st.info("ණය හිඟ මුදල් නොමැත.")
 
-    # ==================== 11. RECYCLE BIN (TRASH & RESTORE) ====================
+    # ==================== 11. RECYCLE BIN (WITH PERMANENT DELETE) ====================
     elif st.session_state["current_page"] == "Recycle Bin":
         st.title("🗑️ Recycle Bin (Trash System)")
-        st.info("මෙතැනින් වැරදීමකින් මැකූ හෝ පියවූ ඕනෑම දත්තයක් නැවත පද්ධතියට Restore කරගත හැක.")
+        st.info("මෙතැනින් මකා දැමූ දත්ත නැවත ලබාගැනීමට (Restore) හෝ පද්ධතියෙන්ම සම්පූර්ණයෙන්ම ඉවත් කිරීමට (Permanently Delete) හැක.")
 
         tab1, tab2, tab3, tab4 = st.tabs(["📦 Products Trash", "🧾 Sales Trash", "💸 Expenses Trash", "📖 Credit Trash"])
 
@@ -635,13 +629,22 @@ else:
             deleted_p = df_p[df_p["Is_Deleted"] == True] if not df_p.empty else pd.DataFrame()
             if not deleted_p.empty:
                 st.dataframe(deleted_p.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_code = st.selectbox("Restore කිරීමට Product එක තෝරන්න:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"])
-                if st.button("🔄 Restore Product"):
-                    code_val = rest_code.split(" - ")[0]
-                    df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
-                    save_data(df_p, PRODUCT_FILE)
-                    st.success("Product එක නැවත පද්ධතියට Restore කරන ලදී!")
-                    st.rerun()
+                rest_code = st.selectbox("Product එක තෝරන්න:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"], key="p_bin_select")
+                code_val = rest_code.split(" - ")[0]
+
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("🔄 Restore Product"):
+                        df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
+                        save_data(df_p, PRODUCT_FILE)
+                        st.success("Product එක නැවත Restore කරන ලදී!")
+                        st.rerun()
+                with btn_col2:
+                    if st.button("❌ Permanently Delete Product", type="primary"):
+                        df_p = df_p[df_p["Code"].astype(str) != code_val]
+                        save_data(df_p, PRODUCT_FILE)
+                        st.success("Product එක පද්ධතියෙන්ම ස්ථිරවම ඉවත් කරන ලදී!")
+                        st.rerun()
             else:
                 st.write("මකා දමන ලද Products නොමැත.")
 
@@ -651,12 +654,21 @@ else:
             deleted_s = df_s[df_s["Is_Deleted"] == True] if not df_s.empty else pd.DataFrame()
             if not deleted_s.empty:
                 st.dataframe(deleted_s.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_s_idx = st.selectbox("Restore කිරීමට Sales Record එක තෝරන්න:", deleted_s.index)
-                if st.button("🔄 Restore Sale Record"):
-                    df_s.loc[rest_s_idx, "Is_Deleted"] = False
-                    save_data(df_s, SALES_FILE)
-                    st.success("Sales record එක නැවත Restore කරන ලදී!")
-                    st.rerun()
+                rest_s_idx = st.selectbox("Sales Record එක තෝරන්න:", deleted_s.index, key="s_bin_select")
+
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("🔄 Restore Sale Record"):
+                        df_s.loc[rest_s_idx, "Is_Deleted"] = False
+                        save_data(df_s, SALES_FILE)
+                        st.success("Sales record එක නැවත Restore කරන ලදී!")
+                        st.rerun()
+                with btn_col2:
+                    if st.button("❌ Permanently Delete Sale Record", type="primary"):
+                        df_s = df_s.drop(index=rest_s_idx)
+                        save_data(df_s, SALES_FILE)
+                        st.success("Sales record එක ස්ථිරවම ඉවත් කරන ලදී!")
+                        st.rerun()
             else:
                 st.write("මකා දමන ලද Sales records නොමැත.")
 
@@ -666,12 +678,21 @@ else:
             deleted_e = df_e[df_e["Is_Deleted"] == True] if not df_e.empty else pd.DataFrame()
             if not deleted_e.empty:
                 st.dataframe(deleted_e.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_e_idx = st.selectbox("Restore කිරීමට Expense එක තෝරන්න:", deleted_e.index)
-                if st.button("🔄 Restore Expense"):
-                    df_e.loc[rest_e_idx, "Is_Deleted"] = False
-                    save_data(df_e, EXPENSES_FILE)
-                    st.success("Expense එක නැවත Restore කරන ලදී!")
-                    st.rerun()
+                rest_e_idx = st.selectbox("Expense එක තෝරන්න:", deleted_e.index, key="e_bin_select")
+
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("🔄 Restore Expense"):
+                        df_e.loc[rest_e_idx, "Is_Deleted"] = False
+                        save_data(df_e, EXPENSES_FILE)
+                        st.success("Expense එක නැවත Restore කරන ලදී!")
+                        st.rerun()
+                with btn_col2:
+                    if st.button("❌ Permanently Delete Expense", type="primary"):
+                        df_e = df_e.drop(index=rest_e_idx)
+                        save_data(df_e, EXPENSES_FILE)
+                        st.success("Expense එක ස්ථිරවම ඉවත් කරන ලදී!")
+                        st.rerun()
             else:
                 st.write("මකා දමන ලද Expenses නොමැත.")
 
@@ -681,11 +702,20 @@ else:
             deleted_c = df_c[df_c["Is_Deleted"] == True] if not df_c.empty else pd.DataFrame()
             if not deleted_c.empty:
                 st.dataframe(deleted_c.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_c_cust = st.selectbox("Restore කිරීමට Customer තෝරන්න:", deleted_c["Customer Name"].unique())
-                if st.button("🔄 Restore Credit Record"):
-                    df_c.loc[df_c["Customer Name"] == rest_c_cust, "Is_Deleted"] = False
-                    save_data(df_c, CREDIT_FILE)
-                    st.success("ණය සටහන නැවත Udara Book එකට Restore කරන ලදී!")
-                    st.rerun()
+                rest_c_cust = st.selectbox("Customer තෝරන්න:", deleted_c["Customer Name"].unique(), key="c_bin_select")
+
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("🔄 Restore Credit Record"):
+                        df_c.loc[df_c["Customer Name"] == rest_c_cust, "Is_Deleted"] = False
+                        save_data(df_c, CREDIT_FILE)
+                        st.success("ණය සටහන නැවත Udara Book එකට Restore කරන ලදී!")
+                        st.rerun()
+                with btn_col2:
+                    if st.button("❌ Permanently Delete Credit Record", type="primary"):
+                        df_c = df_c[df_c["Customer Name"] != rest_c_cust]
+                        save_data(df_c, CREDIT_FILE)
+                        st.success("ණය සටහන ස්ථිරවම ඉවත් කරන ලදී!")
+                        st.rerun()
             else:
                 st.write("මකා දමන ලද හෝ පියවූ ණය සටහන් නොමැත.")
