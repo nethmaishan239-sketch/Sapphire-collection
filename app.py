@@ -1,27 +1,45 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime, date
+from datetime import datetime
+import barcode
+from barcode.writer import ImageWriter
+import streamlit.components.v1 as components
 
-# Page Configuration
-st.set_page_config(page_title="Sapphire Collection POS", layout="wide")
+# ==================== 1. PAGE CONFIGURATION ====================
+st.set_page_config(
+    page_title="Sapphire Collection POS",
+    page_icon="🛍️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# File Paths for Data Persistence
+# ==================== 2. FILE PATHS SETUP ====================
 PRODUCT_FILE = "products.csv"
 SALES_FILE = "sales.csv"
 EXPENSES_FILE = "expenses.csv"
 CREDIT_FILE = "credit.csv"
 CUSTOMER_FILE = "customers.csv"
 SUPPLIER_FILE = "suppliers.csv"
+RETURNS_FILE = "returns.csv"
 
-# Function to initialize CSV files
+# ==================== 3. FILE INITIALIZATION ====================
 def init_files():
     if not os.path.exists(PRODUCT_FILE) or os.stat(PRODUCT_FILE).st_size == 0:
-        df_p = pd.DataFrame(columns=["Code", "Product Name", "Cost Price", "Selling Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)", "Min Threshold", "Supplier", "Is_Deleted"])
+        df_p = pd.DataFrame(columns=[
+            "Code", "Product Name", "Cost Price", "Selling Price", 
+            "Total Meter", "Total Yard", "Total Quantity (Pcs)", 
+            "Min Threshold", "Supplier", "Is_Deleted"
+        ])
         df_p.to_csv(PRODUCT_FILE, index=False)
-    
+
     if not os.path.exists(SALES_FILE) or os.stat(SALES_FILE).st_size == 0:
-        df_s = pd.DataFrame(columns=["Invoice ID", "Date", "Time", "Product Name", "Code", "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", "Cost Price", "Selling Price", "Discount", "Points Used", "Total Price", "Profit", "Payment Method", "Customer", "Is_Deleted"])
+        df_s = pd.DataFrame(columns=[
+            "Invoice ID", "Date", "Time", "Product Name", "Code", 
+            "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", 
+            "Cost Price", "Selling Price", "Discount", "Points Used", 
+            "Total Price", "Profit", "Payment Method", "Customer", "Is_Deleted"
+        ])
         df_s.to_csv(SALES_FILE, index=False)
 
     if not os.path.exists(EXPENSES_FILE) or os.stat(EXPENSES_FILE).st_size == 0:
@@ -29,693 +47,704 @@ def init_files():
         df_e.to_csv(EXPENSES_FILE, index=False)
 
     if not os.path.exists(CREDIT_FILE) or os.stat(CREDIT_FILE).st_size == 0:
-        df_c = pd.DataFrame(columns=["Customer Name", "Phone", "Due Balance", "Last Date", "Is_Deleted"])
-        df_c.to_csv(CREDIT_FILE, index=False)
+        df_cr = pd.DataFrame(columns=["Customer Name", "Phone", "Due Balance", "Last Date", "Is_Deleted"])
+        df_cr.to_csv(CREDIT_FILE, index=False)
 
     if not os.path.exists(CUSTOMER_FILE) or os.stat(CUSTOMER_FILE).st_size == 0:
-        df_cust = pd.DataFrame(columns=["Customer Name", "Phone", "Loyalty Points", "Is_Deleted"])
-        df_cust.to_csv(CUSTOMER_FILE, index=False)
+        df_cu = pd.DataFrame(columns=["Customer Name", "Phone", "Loyalty Points", "Is_Deleted"])
+        df_cu.to_csv(CUSTOMER_FILE, index=False)
 
     if not os.path.exists(SUPPLIER_FILE) or os.stat(SUPPLIER_FILE).st_size == 0:
-        df_sup = pd.DataFrame(columns=["Supplier Name", "Phone", "Company", "Pending Payable", "Is_Deleted"])
-        df_sup.to_csv(SUPPLIER_FILE, index=False)
+        df_su = pd.DataFrame(columns=["Supplier Name", "Phone", "Company", "Pending Payable", "Is_Deleted"])
+        df_su.to_csv(SUPPLIER_FILE, index=False)
+
+    if not os.path.exists(RETURNS_FILE) or os.stat(RETURNS_FILE).st_size == 0:
+        df_re = pd.DataFrame(columns=["Date", "Invoice ID", "Product Name", "Code", "Returned Qty", "Refund Amount", "Reason"])
+        df_re.to_csv(RETURNS_FILE, index=False)
 
 init_files()
 
-# Data Helpers
+# ==================== 4. HELPER FUNCTIONS ====================
 def load_data(file_path):
     try:
         df = pd.read_csv(file_path, dtype={"Code": str, "Phone": str})
         if "Is_Deleted" not in df.columns:
             df["Is_Deleted"] = False
         return df
-    except Exception:
+    except Exception as e:
+        st.error(f"Error loading {file_path}: {e}")
         return pd.DataFrame()
 
 def save_data(df, file_path):
-    df.to_csv(file_path, index=False)
+    try:
+        df.to_csv(file_path, index=False)
+    except Exception as e:
+        st.error(f"Error saving to {file_path}: {e}")
 
-# Session State Setup
+# ==================== 5. SESSION STATE INITIALIZATION ====================
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
+
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = None
+
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "Main Menu"
+
 if "cart" not in st.session_state:
     st.session_state["cart"] = []
 
-# ==================== 🔒 1. LOGIN PAGE ====================
+if "last_invoice" not in st.session_state:
+    st.session_state["last_invoice"] = None
+
+# ==================== 6. LOGIN PAGE SYSTEM ====================
 if not st.session_state["logged_in"]:
-    st.markdown("<h1 style='text-align: center; color: #4CAF50;'>SAPPHIRE COLLECTION POS</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center;'>System Login</h3>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #1E88E5;'>SAPPHIRE COLLECTION POS</h1>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center; color: #555;'>Advanced Retail & Apparel Management System</h4>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        role_selected = st.selectbox("Login As:", ["Admin", "Cashier"])
-        pwd_input = st.text_input("Password:", type="password", key="login_pwd")
+        st.subheader("🔐 User Authentication")
+        role_selected = st.selectbox("Select Account Role:", ["Admin", "Cashier"])
+        pwd_input = st.text_input("Enter Password:", type="password", key="login_pwd")
         
-        if st.button("Login", type="primary", use_container_width=True):
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚀 Login to System", type="primary", use_container_width=True):
             if role_selected == "Admin" and pwd_input == "1234":
                 st.session_state["logged_in"] = True
                 st.session_state["user_role"] = "Admin"
                 st.session_state["current_page"] = "Main Menu"
+                st.success("Admin Login Successful!")
                 st.rerun()
             elif role_selected == "Cashier" and pwd_input == "0000":
                 st.session_state["logged_in"] = True
                 st.session_state["user_role"] = "Cashier"
                 st.session_state["current_page"] = "Main Menu"
+                st.success("Cashier Login Successful!")
                 st.rerun()
             else:
-                st.error("වැරදි Password එකක්!")
+                st.error("❌ Invalid Password! Please try again.")
 
-# ==================== 🏠 LOGGED IN SYSTEM ====================
 else:
-    # Header Bar
-    top_col1, top_col2, top_col3 = st.columns([4, 2, 1])
+    # ==================== 7. HEADER & NAVIGATION BAR ====================
+    top_col1, top_col2, top_col3 = st.columns([3, 2, 1])
+    
     with top_col1:
         if st.session_state["current_page"] != "Main Menu":
             if st.button("⬅️ Back to Main Menu"):
                 st.session_state["current_page"] = "Main Menu"
                 st.rerun()
+        else:
+            st.write("📍 **Dashboard Overview**")
+
     with top_col2:
-        st.write(f"👤 Logged in as: **{st.session_state['user_role']}**")
+        st.write(f"👤 Current User: **{st.session_state['user_role']}**")
+
     with top_col3:
-        if st.button("🔒 Logout"):
+        if st.button("🔒 Logout System"):
             st.session_state["logged_in"] = False
             st.session_state["user_role"] = None
             st.session_state["current_page"] = "Main Menu"
             st.rerun()
 
-    # ==================== 2. MAIN MENU ====================
+    st.markdown("---")
+
+    # ==================== 🏠 MAIN MENU ====================
     if st.session_state["current_page"] == "Main Menu":
-        st.markdown("<h1 style='text-align: center;'>Sapphire Collection POS</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #333;'>💎 Sapphire Collection POS System</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>Select a module below to proceed</p>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        
+
         col1, col2, col3 = st.columns(3)
+
         with col1:
+            st.subheader("📦 Inventory & Products")
             if st.button("📦 Product Management", use_container_width=True):
                 st.session_state["current_page"] = "Product"
                 st.rerun()
-            if st.button("📖 Udara Book (ණය)", use_container_width=True):
+            
+            if st.button("📖 Udara Book (Credit Records)", use_container_width=True):
                 st.session_state["current_page"] = "Credit Book"
                 st.rerun()
-            if st.button("👥 Customer & Loyalty", use_container_width=True):
+
+            if st.button("👥 Customer & Loyalty Program", use_container_width=True):
                 st.session_state["current_page"] = "Customers"
                 st.rerun()
 
+            if st.button("🏷️ Barcode Generator Engine", use_container_width=True):
+                st.session_state["current_page"] = "Barcode"
+                st.rerun()
+
         with col2:
-            if st.button("🧾 Bill Issue & POS", use_container_width=True):
+            st.subheader("🧾 Sales & Billing")
+            if st.button("🧾 Bill Issue & Cashier Terminal", use_container_width=True):
                 st.session_state["current_page"] = "Bill Issue"
                 st.rerun()
+
+            if st.button("🔄 Item Return & Exchange System", use_container_width=True):
+                st.session_state["current_page"] = "Returns"
+                st.rerun()
+
             if st.session_state["user_role"] == "Admin":
-                if st.button("💸 Shop Expenses", use_container_width=True):
+                if st.button("💸 Shop Expense Tracker", use_container_width=True):
                     st.session_state["current_page"] = "Expenses"
-                    st.rerun()
-            if st.session_state["user_role"] == "Admin":
-                if st.button("🏭 Supplier Management", use_container_width=True):
-                    st.session_state["current_page"] = "Suppliers"
                     st.rerun()
 
         with col3:
-            if st.button("📊 Stock & Alerts", use_container_width=True):
+            st.subheader("📊 Analytics & Admin")
+            if st.button("📊 Stock Levels & Reorder Alerts", use_container_width=True):
                 st.session_state["current_page"] = "Stock"
                 st.rerun()
+
             if st.session_state["user_role"] == "Admin":
-                if st.button("📈 Reports & Net Profit", use_container_width=True):
+                if st.button("📈 Sales Reports & Profit Analytics", use_container_width=True):
                     st.session_state["current_page"] = "Reports"
                     st.rerun()
 
-        if st.session_state["user_role"] == "Admin":
-            st.markdown("<br>", unsafe_allow_html=True)
-            col_bin, _ = st.columns([1, 2])
-            with col_bin:
-                if st.button("🗑️ Recycle Bin (Trash)", use_container_width=True):
-                    st.session_state["current_page"] = "Recycle Bin"
+                if st.button("🏭 Supplier & Vendor Management", use_container_width=True):
+                    st.session_state["current_page"] = "Suppliers"
                     st.rerun()
 
-    # ==================== 3. PRODUCT PAGE ====================
+        if st.session_state["user_role"] == "Admin":
+            st.markdown("<br><hr>", unsafe_allow_html=True)
+            if st.button("🗑️ Recycle Bin (Trash & Restore Center)", use_container_width=True):
+                st.session_state["current_page"] = "Recycle Bin"
+                st.rerun()
+
+    # ==================== 🏷️ BARCODE GENERATOR ====================
+    elif st.session_state["current_page"] == "Barcode":
+        st.title("🏷️ Barcode Generator Engine")
+        st.write("Generate printable Code128 barcodes for inventory tags.")
+
+        df_products = load_data(PRODUCT_FILE)
+        active_products = df_products[df_products["Is_Deleted"] == False] if not df_products.empty else pd.DataFrame()
+
+        if not active_products.empty:
+            sel_p = st.selectbox("Select Product to Generate Barcode:", active_products["Code"].astype(str) + " - " + active_products["Product Name"])
+            code_to_gen = sel_p.split(" - ")[0]
+
+            col_bc1, col_bc2 = st.columns([1, 2])
+            with col_bc1:
+                if st.button("Generate Barcode Label"):
+                    try:
+                        code128 = barcode.get_barcode_class('code128')
+                        my_barcode = code128(code_to_gen, writer=ImageWriter())
+                        filename = my_barcode.save(f"barcode_{code_to_gen}")
+                        
+                        st.image(filename, caption=f"Barcode: {code_to_gen}", width=300)
+                        
+                        with open(filename, "rb") as file:
+                            st.download_button(
+                                label="📥 Download Image Label",
+                                data=file,
+                                file_name=f"barcode_{code_to_gen}.png",
+                                mime="image/png"
+                            )
+                    except Exception as e:
+                        st.error(f"Barcode Generation Failed: {e}")
+        else:
+            st.warning("No active products available to generate barcodes.")
+
+    # ==================== 📦 PRODUCT MANAGEMENT ====================
     elif st.session_state["current_page"] == "Product":
-        st.title("📦 Product Management")
+        st.title("📦 Product & Inventory Management")
+        
         df_products = load_data(PRODUCT_FILE)
         df_sup = load_data(SUPPLIER_FILE)
+        
         active_products = df_products[df_products["Is_Deleted"] == False] if not df_products.empty else pd.DataFrame()
-        active_sups = df_sup[df_sup["Is_Deleted"] == False]["Supplier Name"].tolist() if not df_sup.empty else ["Default"]
+        active_sups = df_sup[df_sup["Is_Deleted"] == False]["Supplier Name"].tolist() if not df_sup.empty else ["Default Supplier"]
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.subheader("➕ Product එකතු කිරීම / Update කිරීම")
+        col_left, col_right = st.columns([1, 1])
+
+        with col_left:
+            st.subheader("➕ Add / Update Product Item")
             with st.form("add_product_form", clear_on_submit=True):
-                p_code = st.text_input("🏷️ Barcode / Product Code (Scan or Type)").strip()
-                p_name = st.text_input("Product Name").strip()
+                p_code = st.text_input("🏷️ Product Code / Barcode ID").strip()
+                p_name = st.text_input("📦 Product Name").strip()
                 
                 if st.session_state["user_role"] == "Admin":
-                    p_cost = st.number_input("Cost Price (ගන්නා මිල Rs.)", min_value=0.0, step=10.0)
+                    p_cost = st.number_input("Cost Price (Rs.)", min_value=0.0, format="%.2f")
                 else:
                     p_cost = 0.0
-                    
-                p_sell = st.number_input("Selling Price (විකුණන මිල Rs.)", min_value=0.0, step=10.0)
+
+                p_sell = st.number_input("Selling Price (Rs.)", min_value=0.0, format="%.2f")
                 p_sup = st.selectbox("Supplier", active_sups)
 
+                st.write("---")
+                st.write("📐 **Stock Quantities**")
                 col_p1, col_p2, col_p3 = st.columns(3)
-                with col_p1: 
-                    p_meter = st.number_input("Total Meter", min_value=0.0, step=0.5, key="p_meter_input")
-                with col_p2: 
-                    p_yard = st.number_input("Total Yard", min_value=0.0, step=0.5, key="p_yard_input")
-                with col_p3: 
-                    p_qty = st.number_input("Quantity (Pcs)", min_value=0.0, step=1.0, key="p_qty_input")
-                
-                p_min = st.number_input("⚠️ Low Stock Warning Threshold", min_value=1.0, value=5.0)
+                with col_p1:
+                    p_meter = st.number_input("Meters", min_value=0.0, step=0.5)
+                with col_p2:
+                    p_yard = st.number_input("Yards", min_value=0.0, step=0.5)
+                with col_p3:
+                    p_qty = st.number_input("Pcs Qty", min_value=0.0, step=1.0)
 
-                if st.form_submit_button("Save Product"):
-                    if not p_code or not p_name:
-                        st.error("Code සහ Product Name ඇතුළත් කරන්න.")
-                    else:
+                p_min = st.number_input("⚠️ Minimum Stock Alert Level", min_value=1.0, value=5.0)
+
+                if st.form_submit_button("Save Product to Database"):
+                    if p_code and p_name:
                         new_data = {
-                            "Code": p_code, "Product Name": p_name, "Cost Price": p_cost, 
-                            "Selling Price": p_sell, "Total Meter": p_meter, "Total Yard": p_yard, 
-                            "Total Quantity (Pcs)": p_qty, "Min Threshold": p_min, "Supplier": p_sup, "Is_Deleted": False
+                            "Code": p_code,
+                            "Product Name": p_name,
+                            "Cost Price": p_cost,
+                            "Selling Price": p_sell,
+                            "Total Meter": p_meter,
+                            "Total Yard": p_yard,
+                            "Total Quantity (Pcs)": p_qty,
+                            "Min Threshold": p_min,
+                            "Supplier": p_sup,
+                            "Is_Deleted": False
                         }
+                        
                         if not df_products.empty and p_code in df_products["Code"].astype(str).values:
                             df_products.loc[df_products["Code"].astype(str) == p_code] = new_data
+                            st.success(f"Product '{p_name}' Updated Successfully!")
                         else:
                             df_products = pd.concat([df_products, pd.DataFrame([new_data])], ignore_index=True)
-                        save_data(df_products, PRODUCT_FILE)
-                        st.success("Product එක Save විය!")
-                        st.rerun()
+                            st.success(f"New Product '{p_name}' Saved Successfully!")
 
-        with col2:
-            if st.session_state["user_role"] == "Admin":
-                st.subheader("🗑️ Delete Product (Move to Trash)")
-                if not active_products.empty:
-                    delete_code = st.selectbox("මකා දැමීමට Product එක තෝරන්න:", active_products["Code"].astype(str) + " - " + active_products["Product Name"])
-                    if st.button("Move to Recycle Bin", type="primary"):
-                        selected_code = delete_code.split(" - ")[0]
-                        df_products.loc[df_products["Code"].astype(str) == selected_code, "Is_Deleted"] = True
                         save_data(df_products, PRODUCT_FILE)
-                        st.success("Product එක Recycle Bin එකට යවන ලදී!")
                         st.rerun()
+                    else:
+                        st.error("Please enter both Product Code and Name.")
 
-    # ==================== 4. BILL ISSUE PAGE ====================
+        with col_right:
+            if st.session_state["user_role"] == "Admin" and not active_products.empty:
+                st.subheader("🗑️ Delete Product Item")
+                delete_code = st.selectbox("Select Product to Delete:", active_products["Code"].astype(str) + " - " + active_products["Product Name"])
+                
+                if st.button("Move to Recycle Bin", type="primary"):
+                    target_code = delete_code.split(" - ")[0]
+                    df_products.loc[df_products["Code"].astype(str) == target_code, "Is_Deleted"] = True
+                    save_data(df_products, PRODUCT_FILE)
+                    st.success("Item moved to Recycle Bin!")
+                    st.rerun()
+
+        st.markdown("---")
+        st.subheader("📋 Active Product Catalogue")
+        if not active_products.empty:
+            st.dataframe(
+                active_products[["Code", "Product Name", "Cost Price", "Selling Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)", "Supplier"]],
+                use_container_width=True
+            )
+        else:
+            st.info("No products currently listed in inventory.")
+
+    # ==================== 🧾 BILL ISSUE & POS ====================
     elif st.session_state["current_page"] == "Bill Issue":
-        st.title("🧾 Bill Issue & POS")
+        st.title("🧾 Bill Issue & Cashier Terminal")
+
         df_products = load_data(PRODUCT_FILE)
         df_cust = load_data(CUSTOMER_FILE)
+
         active_products = df_products[df_products["Is_Deleted"] == False] if not df_products.empty else pd.DataFrame()
         active_cust = df_cust[df_cust["Is_Deleted"] == False] if not df_cust.empty else pd.DataFrame()
 
-        if active_products.empty:
-            st.warning("පළමුව 'Product Management' අංශයෙන් භාණ්ඩ ඇතුළත් කරන්න.")
-        else:
-            col_left, col_right = st.columns([1, 1])
+        if not active_products.empty:
+            col_left, col_right = st.columns([1.1, 0.9])
 
             with col_left:
-                st.subheader("➕ Cart එකට Item එකතු කරන්න")
-                search_query = st.text_input("🔍 Scan Barcode or Type Product Name/Code:", "").strip()
-                filtered = active_products if not search_query else active_products[
-                    active_products["Code"].astype(str).str.contains(search_query, case=False, na=False) |
-                    active_products["Product Name"].str.contains(search_query, case=False, na=False)
-                ]
+                st.subheader("🔍 Add Item to Billing Cart")
+                search_query = st.text_input("Scan Barcode / Search Name or Code:").strip()
+                
+                if search_query:
+                    filtered = active_products[
+                        active_products["Code"].astype(str).str.contains(search_query, case=False, na=False) |
+                        active_products["Product Name"].str.contains(search_query, case=False, na=False)
+                    ]
+                else:
+                    filtered = active_products
 
                 if not filtered.empty:
-                    prod_opts = filtered["Code"].astype(str) + " - " + filtered["Product Name"]
-                    sel_prod = st.selectbox("Product එක තෝරන්න:", prod_opts)
+                    sel_prod = st.selectbox("Choose Product From Search Result:", filtered["Code"].astype(str) + " - " + filtered["Product Name"])
                     sel_code = sel_prod.split(" - ")[0]
                     prod_row = filtered[filtered["Code"].astype(str) == sel_code].iloc[0]
 
-                    cost_price = float(prod_row.get("Cost Price", 0))
-                    sell_price = float(prod_row.get("Selling Price", 0))
-                    curr_m = float(prod_row.get("Total Meter", 0))
-                    curr_y = float(prod_row.get("Total Yard", 0))
-                    curr_q = float(prod_row.get("Total Quantity (Pcs)", 0))
-
-                    st.info(f"📌 Available Stock: {curr_m}m | {curr_y}yd | {int(curr_q)} Pcs | Price: Rs. {sell_price:,.2f}")
+                    st.info(f"Unit Selling Price: Rs. {float(prod_row['Selling Price']):,.2f}")
 
                     col_b1, col_b2, col_b3 = st.columns(3)
-                    with col_b1: sell_m = st.number_input("Meter Amount:", min_value=0.0, step=0.1)
-                    with col_b2: sell_y = st.number_input("Yard Amount:", min_value=0.0, step=0.1)
-                    with col_b3: sell_q = st.number_input("Quantity Pcs:", min_value=0.0, step=1.0)
-                    
-                    warranty_val = st.selectbox("Warranty:", ["No Warranty", "6 Months", "1 Year", "2 Years", "3 Years"])
+                    with col_b1:
+                        sell_m = st.number_input("Meter Sale:", min_value=0.0, step=0.1)
+                    with col_b2:
+                        sell_y = st.number_input("Yard Sale:", min_value=0.0, step=0.1)
+                    with col_b3:
+                        sell_q = st.number_input("Pcs Quantity:", min_value=0.0, step=1.0)
+
+                    warranty_val = st.selectbox("Warranty Options:", ["No Warranty", "6 Months", "1 Year", "2 Years", "3 Years"])
 
                     unit_qty = sell_m + sell_y + sell_q
-                    item_total = unit_qty * sell_price
+                    item_total = unit_qty * float(prod_row["Selling Price"])
 
-                    if st.button("🛒 Add to Cart"):
-                        if unit_qty <= 0:
-                            st.error("ප්‍රමාණයක් ඇතුළත් කරන්න.")
-                        elif sell_m > curr_m or sell_y > curr_y or sell_q > curr_q:
-                            st.error("තොගයේ ප්‍රමාණවත් තරම් බඩු නොමැත!")
-                        else:
-                            cart_item = {
+                    st.write(f"**Item Total Value:** Rs. {item_total:,.2f}")
+
+                    if st.button("🛒 Add Selected Item to Cart", use_container_width=True):
+                        if unit_qty > 0:
+                            st.session_state["cart"].append({
                                 "Code": sel_code,
                                 "Product Name": prod_row["Product Name"],
-                                "Cost Price": cost_price,
-                                "Selling Price": sell_price,
+                                "Cost Price": float(prod_row["Cost Price"]),
+                                "Selling Price": float(prod_row["Selling Price"]),
                                 "Meter Amount": sell_m,
                                 "Yard Amount": sell_y,
                                 "Quantity (Pcs)": sell_q,
                                 "Total Qty": unit_qty,
                                 "Warranty": warranty_val,
                                 "Total Price": item_total,
-                                "Profit": item_total - (unit_qty * cost_price)
-                            }
-                            st.session_state["cart"].append(cart_item)
-                            st.success(f"{prod_row['Product Name']} Cart එකට එකතු විය!")
+                                "Profit": item_total - (unit_qty * float(prod_row["Cost Price"]))
+                            })
+                            st.success("Item added to cart!")
                             st.rerun()
+                        else:
+                            st.error("Please enter a valid quantity/meter/yard.")
 
             with col_right:
-                st.subheader("🛍️ Current Cart (එකතු කළ භාණ්ඩ)")
+                st.subheader("🛍️ Shopping Cart Items")
                 if len(st.session_state["cart"]) > 0:
                     cart_df = pd.DataFrame(st.session_state["cart"])
-                    st.dataframe(cart_df[["Product Name", "Total Qty", "Selling Price", "Warranty", "Total Price"]], use_container_width=True)
+                    st.dataframe(cart_df[["Product Name", "Total Qty", "Warranty", "Selling Price", "Total Price"]], use_container_width=True)
 
-                    if st.button("🗑️ Clear Cart"):
+                    subtotal = cart_df["Total Price"].sum()
+                    st.markdown(f"### 💰 Grand Total: Rs. {subtotal:,.2f}")
+
+                    if st.button("🗑️ Clear Entire Cart"):
                         st.session_state["cart"] = []
                         st.rerun()
 
-                    subtotal = cart_df["Total Price"].sum()
-                    st.markdown(f"#### 💰 Subtotal: **Rs. {subtotal:,.2f}**")
+                    st.write("---")
+                    st.subheader("💳 Checkout & Bill Settlement")
+                    
+                    cust_phone = st.text_input("📱 Customer WhatsApp Number (e.g., 94771234567):")
+                    pay_method = st.selectbox("Select Payment Channel:", ["Cash", "Card", "Online Transfer / QR", "Credit (ණය)"])
 
-                    st.markdown("---")
-                    st.subheader("👤 Customer & Payment")
-                    cust_names = ["Guest Customer"] + active_cust["Customer Name"].tolist() if not active_cust.empty else ["Guest Customer"]
-                    sel_cust_name = st.selectbox("Select Customer:", cust_names)
-
-                    avail_points = 0
-                    points_to_use = 0
-                    if sel_cust_name != "Guest Customer" and not active_cust.empty:
-                        cust_row = active_cust[active_cust["Customer Name"] == sel_cust_name].iloc[0]
-                        avail_points = float(cust_row.get("Loyalty Points", 0))
-                        st.write(f"🌟 Available Loyalty Points: **{avail_points:.0f} Points**")
-                        use_points = st.checkbox("Redeem Points as Discount")
-                        if use_points:
-                            points_to_use = st.number_input("Points to Redeem:", min_value=0.0, max_value=avail_points, step=1.0)
-
-                    col_o1, col_o2 = st.columns(2)
-                    with col_o1:
-                        disc_type = st.radio("Discount Type:", ["Flat Amount (Rs.)", "Percentage (%)"], horizontal=True)
-                        disc_val = st.number_input("Discount Value:", min_value=0.0)
-                    with col_o2:
-                        pay_method = st.selectbox("Payment Method:", ["Cash", "Card", "Online Transfer / QR", "Credit (ණය)"])
-
-                    cust_phone = ""
-                    if pay_method == "Credit (ණය)":
-                        cust_phone = st.text_input("Customer Phone Number:")
-
-                    discount_rs = disc_val if "Flat" in disc_type else (subtotal * disc_val / 100.0)
-                    discount_rs += points_to_use
-                    final_total = max(0.0, subtotal - discount_rs)
-                    earned_points = int(final_total // 100)
-
-                    st.markdown(f"### 💵 Net Total: **Rs. {final_total:,.2f}**")
-
-                    if st.button("✅ Complete Sale & Print Bill", type="primary", use_container_width=True):
-                        invoice_id = datetime.now().strftime("INV%Y%m%d%H%M%S")
-                        now = datetime.now()
-
+                    if st.button("✅ Complete Transaction & Finalize Sale", type="primary", use_container_width=True):
+                        inv_id = datetime.now().strftime("INV%Y%m%d%H%M%S")
+                        now_str = datetime.now().strftime("%Y-%m-%d")
                         df_sales = load_data(SALES_FILE)
 
                         for item in st.session_state["cart"]:
                             p_code_val = item["Code"]
                             p_row = df_products[df_products["Code"].astype(str) == p_code_val].iloc[0]
+
+                            # Update inventory stock levels
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Meter"] = max(0, float(p_row["Total Meter"]) - item["Meter Amount"])
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Yard"] = max(0, float(p_row["Total Yard"]) - item["Yard Amount"])
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Quantity (Pcs)"] = max(0, float(p_row["Total Quantity (Pcs)"]) - item["Quantity (Pcs)"])
 
-                            new_sale = {
-                                "Invoice ID": invoice_id,
-                                "Date": now.strftime("%Y-%m-%d"),
-                                "Time": now.strftime("%H:%M:%S"),
-                                "Product Name": item["Product Name"],
-                                "Code": item["Code"],
-                                "Meter Amount": item["Meter Amount"],
-                                "Yard Amount": item["Yard Amount"],
-                                "Quantity (Pcs)": item["Quantity (Pcs)"],
-                                "Warranty": item["Warranty"],
-                                "Cost Price": item["Cost Price"],
-                                "Selling Price": item["Selling Price"],
-                                "Discount": discount_rs,
-                                "Points Used": points_to_use,
-                                "Total Price": item["Total Price"],
-                                "Profit": item["Profit"],
+                            new_sale = item.copy()
+                            new_sale.update({
+                                "Invoice ID": inv_id,
+                                "Date": now_str,
+                                "Time": datetime.now().strftime("%H:%M:%S"),
+                                "Discount": 0,
+                                "Points Used": 0,
                                 "Payment Method": pay_method,
-                                "Customer": sel_cust_name,
+                                "Customer": cust_phone if cust_phone else "Guest",
                                 "Is_Deleted": False
-                            }
+                            })
                             df_sales = pd.concat([df_sales, pd.DataFrame([new_sale])], ignore_index=True)
 
                         save_data(df_products, PRODUCT_FILE)
                         save_data(df_sales, SALES_FILE)
 
-                        if sel_cust_name != "Guest Customer" and not active_cust.empty:
-                            new_points = avail_points - points_to_use + earned_points
-                            df_cust.loc[df_cust["Customer Name"] == sel_cust_name, "Loyalty Points"] = new_points
-                            save_data(df_cust, CUSTOMER_FILE)
-
-                        if pay_method == "Credit (ණය)" and sel_cust_name:
-                            df_cred = load_data(CREDIT_FILE)
-                            if not df_cred.empty and sel_cust_name in df_cred[df_cred["Is_Deleted"] == False]["Customer Name"].values:
-                                existing_due = df_cred.loc[(df_cred["Customer Name"] == sel_cust_name) & (df_cred["Is_Deleted"] == False), "Due Balance"].values[0]
-                                df_cred.loc[(df_cred["Customer Name"] == sel_cust_name) & (df_cred["Is_Deleted"] == False), "Due Balance"] = float(existing_due) + final_total
-                                df_cred.loc[(df_cred["Customer Name"] == sel_cust_name) & (df_cred["Is_Deleted"] == False), "Last Date"] = now.strftime("%Y-%m-%d")
-                            else:
-                                cred_row = {"Customer Name": sel_cust_name, "Phone": cust_phone, "Due Balance": final_total, "Last Date": now.strftime("%Y-%m-%d"), "Is_Deleted": False}
-                                df_cred = pd.concat([df_cred, pd.DataFrame([cred_row])], ignore_index=True)
-                            save_data(df_cred, CREDIT_FILE)
-
-                        items_html = ""
-                        for item in st.session_state["cart"]:
-                            items_html += f"""
-                            <div style="display:flex; justify-content:space-between; margin: 3px 0;">
-                                <span><b>{item['Product Name']}</b> (x{item['Total Qty']})</span>
-                                <span>Rs. {item['Total Price']:,.2f}</span>
-                            </div>
-                            """
-
-                        receipt_html = f"""
-                        <div id="printableArea" style="width: 280px; background: white; color: black; padding: 12px; font-family: monospace; font-size: 12px; border: 1px solid #ccc; border-radius: 5px; margin: auto;">
-                            <h3 style="text-align:center; margin:0;">SAPPHIRE COLLECTION</h3>
-                            <p style="text-align:center; margin:2px 0;">Electronics & Textiles</p>
-                            <p style="text-align:center; margin:0;">--------------------------------</p>
-                            <p style="margin: 4px 0;"><b>Invoice:</b> {invoice_id}<br><b>Date:</b> {now.strftime("%Y-%m-%d %H:%M")}<br><b>Customer:</b> {sel_cust_name}<br><b>Pay Method:</b> {pay_method}</p>
-                            <p style="text-align:center; margin:0;">--------------------------------</p>
-                            {items_html}
-                            <p style="text-align:center; margin:0;">--------------------------------</p>
-                            <p style="margin: 4px 0;"><b>Subtotal:</b> Rs. {subtotal:,.2f}</p>
-                            <p style="margin: 4px 0;"><b>Discount:</b> Rs. {discount_rs:,.2f}</p>
-                            <h4 style="margin: 6px 0;">TOTAL: Rs. {final_total:,.2f}</h4>
-                            <p style="text-align:center; margin:0;">--------------------------------</p>
-                            <p style="text-align:center; margin:2px 0;">Points Earned: {earned_points}</p>
-                            <p style="text-align:center; margin:4px 0;">Thank You! Come Again.</p>
-                        </div>
-                        <br>
-                        <div style="text-align: center;">
-                            <button onclick="window.print()" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ Print Receipt</button>
-                        </div>
-                        """
-                        
+                        st.session_state["last_invoice"] = {
+                            "inv_id": inv_id,
+                            "items": st.session_state["cart"],
+                            "total": subtotal,
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "phone": cust_phone
+                        }
                         st.session_state["cart"] = []
-                        st.success("✅ බිල්පත සාර්ථකව නිකුත් කරන ලදී!")
-                        st.components.v1.html(receipt_html, height=420)
-
+                        st.success("✅ Transaction completed successfully!")
+                        st.rerun()
                 else:
-                    st.info("Cart එක හිස්ව පවතී. භාණ්ඩ එකතු කරන්න.")
+                    st.info("The cart is currently empty.")
 
-    # ==================== 5. CUSTOMER & LOYALTY ====================
-    elif st.session_state["current_page"] == "Customers":
-        st.title("👥 Customer Management & Loyalty Points")
-        df_cust = load_data(CUSTOMER_FILE)
-        active_cust = df_cust[df_cust["Is_Deleted"] == False] if not df_cust.empty else pd.DataFrame()
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("➕ Add New Customer")
-            with st.form("add_cust_form", clear_on_submit=True):
-                c_name = st.text_input("Customer Name").strip()
-                c_phone = st.text_input("Phone Number").strip()
-                if st.form_submit_button("Save Customer"):
-                    if c_name:
-                        new_c = {"Customer Name": c_name, "Phone": c_phone, "Loyalty Points": 0, "Is_Deleted": False}
-                        df_cust = pd.concat([df_cust, pd.DataFrame([new_c])], ignore_index=True)
-                        save_data(df_cust, CUSTOMER_FILE)
-                        st.success("Customer සාර්ථකව එකතු විය!")
-                        st.rerun()
-
-        with col2:
-            st.subheader("📋 Registered Customers")
-            if not active_cust.empty:
-                st.dataframe(active_cust.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-
-    # ==================== 6. SUPPLIER MANAGEMENT ====================
-    elif st.session_state["current_page"] == "Suppliers":
-        st.title("🏭 Supplier Management")
-        df_sup = load_data(SUPPLIER_FILE)
-        active_sup = df_sup[df_sup["Is_Deleted"] == False] if not df_sup.empty else pd.DataFrame()
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("➕ Add Supplier")
-            with st.form("add_sup_form", clear_on_submit=True):
-                s_name = st.text_input("Supplier / Contact Name").strip()
-                s_company = st.text_input("Company Name").strip()
-                s_phone = st.text_input("Phone Number").strip()
-                s_payable = st.number_input("Pending Payable Amount (ණය මුදල Rs.)", min_value=0.0)
-                if st.form_submit_button("Save Supplier"):
-                    if s_name:
-                        new_s = {"Supplier Name": s_name, "Company": s_company, "Phone": s_phone, "Pending Payable": s_payable, "Is_Deleted": False}
-                        df_sup = pd.concat([df_sup, pd.DataFrame([new_s])], ignore_index=True)
-                        save_data(df_sup, SUPPLIER_FILE)
-                        st.success("Supplier එකතු විය!")
-                        st.rerun()
-
-        with col2:
-            st.subheader("📋 Supplier List")
-            if not active_sup.empty:
-                st.dataframe(active_sup.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-
-    # ==================== 7. STOCK & ALERTS ====================
-    elif st.session_state["current_page"] == "Stock":
-        st.title("📊 Stock & Low Stock Warnings")
-        df_products = load_data(PRODUCT_FILE)
-        active_products = df_products[df_products["Is_Deleted"] == False] if not df_products.empty else pd.DataFrame()
-
-        if not active_products.empty:
-            st.subheader("⚠️ Low Stock Alerts")
-            low_stock = active_products[
-                ((active_products["Total Meter"] > 0) & (active_products["Total Meter"] <= active_products["Min Threshold"])) |
-                ((active_products["Total Quantity (Pcs)"] > 0) & (active_products["Total Quantity (Pcs)"] <= active_products["Min Threshold"])) |
-                ((active_products["Total Meter"] == 0) & (active_products["Total Quantity (Pcs)"] == 0))
-            ]
-            if not low_stock.empty:
-                st.dataframe(low_stock[["Product Name", "Code", "Total Meter", "Total Quantity (Pcs)", "Min Threshold"]], use_container_width=True)
-            else:
-                st.success("සියලුම භාණ්ඩ ප්‍රමාණවත් ලෙස තොගයේ ඇත.")
-
-            st.subheader("📋 Complete Stock")
-            if st.session_state["user_role"] == "Cashier":
-                st.dataframe(active_products.drop(columns=["Is_Deleted", "Cost Price"], errors="ignore"), use_container_width=True)
-            else:
-                st.dataframe(active_products.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-
-    # ==================== 8. REPORTS & NET PROFIT ====================
-    elif st.session_state["current_page"] == "Reports":
-        st.title("📈 Sales Reports & Net Profit")
-        df_sales = load_data(SALES_FILE)
-        df_expenses = load_data(EXPENSES_FILE)
-
-        active_sales = df_sales[df_sales["Is_Deleted"] == False] if not df_sales.empty else pd.DataFrame()
-        active_exp = df_expenses[df_expenses["Is_Deleted"] == False] if not df_expenses.empty else pd.DataFrame()
-
-        col_d1, col_d2 = st.columns(2)
-        with col_d1: start_d = st.date_input("Start Date", value=date.today())
-        with col_d2: end_d = st.date_input("End Date", value=date.today())
-
-        if not active_sales.empty:
-            active_sales["Date_dt"] = pd.to_datetime(active_sales["Date"]).dt.date
-            mask = (active_sales["Date_dt"] >= start_d) & (active_sales["Date_dt"] <= end_d)
-            filtered_s = active_sales.loc[mask]
-
-            total_rev = filtered_s["Total Price"].sum() if not filtered_s.empty else 0
-            gross_profit = filtered_s["Profit"].sum() if not filtered_s.empty else 0
-
-            total_exp = 0
-            if not active_exp.empty:
-                active_exp["Date_dt"] = pd.to_datetime(active_exp["Date"]).dt.date
-                filtered_e = active_exp.loc[(active_exp["Date_dt"] >= start_d) & (active_exp["Date_dt"] <= end_d)]
-                total_exp = filtered_e["Amount"].sum()
-
-            net_profit = gross_profit - total_exp
-
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("💰 මුළු ආදායම", f"Rs. {total_rev:,.2f}")
-            m2.metric("📦 දළ ලාභය", f"Rs. {gross_profit:,.2f}")
-            m3.metric("💸 මුළු වියදම්", f"Rs. {total_exp:,.2f}")
-            m4.metric("🔥 නියම ශුද්ධ ලාභය", f"Rs. {net_profit:,.2f}")
-
-            st.dataframe(filtered_s.drop(columns=["Is_Deleted", "Date_dt"], errors="ignore"), use_container_width=True)
-
-            col_del, _ = st.columns([1, 2])
-            with col_del:
-                sale_idx = st.selectbox("Move Sale Record to Trash:", filtered_s.index)
-                if st.button("Delete Sale Record"):
-                    df_sales.loc[sale_idx, "Is_Deleted"] = True
-                    save_data(df_sales, SALES_FILE)
-                    st.success("Sales record එක Recycle Bin එකට යවන ලදී!")
-                    st.rerun()
-
-    # ==================== 9. SHOP EXPENSES ====================
-    elif st.session_state["current_page"] == "Expenses":
-        st.title("💸 Daily Shop Expenses Tracker")
-        df_exp = load_data(EXPENSES_FILE)
-        active_exp = df_exp[df_exp["Is_Deleted"] == False] if not df_exp.empty else pd.DataFrame()
-
-        with st.form("add_exp"):
-            exp_desc = st.text_input("Expense Description")
-            exp_amt = st.number_input("Amount (Rs.)", min_value=0.0)
-            if st.form_submit_button("Add Expense"):
-                if exp_desc and exp_amt > 0:
-                    new_exp = {"Date": datetime.now().strftime("%Y-%m-%d"), "Description": exp_desc, "Amount": exp_amt, "Is_Deleted": False}
-                    df_exp = pd.concat([df_exp, pd.DataFrame([new_exp])], ignore_index=True)
-                    save_data(df_exp, EXPENSES_FILE)
-                    st.success("වියදම ඇතුළත් විය!")
-                    st.rerun()
-
-        st.subheader("📋 Expenses Log")
-        if not active_exp.empty:
-            st.dataframe(active_exp.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-            exp_del_idx = st.selectbox("Move Expense to Trash:", active_exp.index)
-            if st.button("Delete Expense"):
-                df_exp.loc[exp_del_idx, "Is_Deleted"] = True
-                save_data(df_exp, EXPENSES_FILE)
-                st.success("Expense එක Recycle Bin එකට යවන ලදී!")
-                st.rerun()
-
-    # ==================== 10. CREDIT BOOK ====================
-    elif st.session_state["current_page"] == "Credit Book":
-        st.title("📖 Customer Credit Book (ණය පොත)")
-        df_cred = load_data(CREDIT_FILE)
-        active_cred = df_cred[df_cred["Is_Deleted"] == False] if not df_cred.empty else pd.DataFrame()
-
-        if not active_cred.empty:
-            st.dataframe(active_cred.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-            
+        # Thermal Receipt Section
+        if st.session_state["last_invoice"]:
+            inv_data = st.session_state["last_invoice"]
             st.markdown("---")
-            st.subheader("💵 Debt Payment / Settle (ණය මුදල් ලබාගැනීම)")
-            
-            sel_cust = st.selectbox("Customer තෝරන්න:", active_cred["Customer Name"].unique())
-            cust_row = active_cred[active_cred["Customer Name"] == sel_cust].iloc[0]
-            current_due = float(cust_row["Due Balance"])
-            
-            st.info(f"👤 Customer: **{sel_cust}** | 💳 Current Due Balance: **Rs. {current_due:,.2f}**")
-            
-            col_pay1, col_pay2 = st.columns(2)
-            with col_pay1:
-                pay_amount = st.number_input("ලබාදුන් මුදල (Rs.):", min_value=0.0, max_value=current_due, step=100.0)
-            with col_pay2:
-                settle_option = st.radio("ගෙවීම් වර්ගය:", ["Partial Payment (කොටසක් ගෙවීම)", "Full Settle (සම්පූර්ණයෙන්ම පියවීම)"])
+            st.subheader("🖨️ Receipt Terminal & Digital Sharing")
 
-            if st.button("✅ Record Payment / Settle", type="primary"):
-                now_str = datetime.now().strftime("%Y-%m-%d")
-                
-                if "Full Settle" in settle_option or pay_amount >= current_due:
-                    df_cred.loc[df_cred["Customer Name"] == sel_cust, "Is_Deleted"] = True
-                    save_data(df_cred, CREDIT_FILE)
-                    st.success(f"🎉 {sel_cust} ගේ ණය මුදල සම්පූර්ණයෙන්ම ගෙවා අවසන් කර Recycle Bin එකට යවන ලදී!")
+            if inv_data["phone"]:
+                msg = f"Thank you for shopping at Sapphire Collection! Invoice: {inv_data['inv_id']}, Total: Rs.{inv_data['total']:,.2f}"
+                st.markdown(f"[📲 Click Here to Send Receipt via WhatsApp](https://wa.me/{inv_data['phone']}?text={msg.replace(' ', '%20')})")
+
+            receipt_html = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: monospace; width: 280px; margin: 0 auto; padding: 10px; }}
+                    .center {{ text-align: center; }}
+                    table {{ width: 100%; font-size: 12px; border-collapse: collapse; }}
+                    th, td {{ text-align: left; padding: 3px 0; }}
+                    .line {{ border-bottom: 1px dashed #000; margin: 5px 0; }}
+                </style>
+            </head>
+            <body>
+                <div class="center">
+                    <h2>SAPPHIRE COLLECTION</h2>
+                    <p>No. 123, Main Street, Sri Lanka<br>Tel: 077 123 4567</p>
+                </div>
+                <div class="line"></div>
+                <p>Invoice: {inv_data['inv_id']}<br>Date: {inv_data['date']}</p>
+                <div class="line"></div>
+                <table>
+                    <tr><th>Item</th><th>Qty</th><th>Price</th></tr>
+            """
+            for itm in inv_data['items']:
+                receipt_html += f"<tr><td>{itm['Product Name']}</td><td>{itm['Total Qty']}</td><td>{itm['Total Price']:,.2f}</td></tr>"
+
+            receipt_html += f"""
+                </table>
+                <div class="line"></div>
+                <h3>NET TOTAL: Rs. {inv_data['total']:,.2f}</h3>
+                <div class="line"></div>
+                <div class="center">
+                    <p>Thank You For Shopping With Us!</p>
+                    <p>--- Exchange possible within 7 days ---</p>
+                </div>
+                <button onclick="window.print()" style="width:100%; padding: 10px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; border-radius: 4px;">🖨️ PRINT THERMAL RECEIPT</button>
+            </body>
+            </html>
+            """
+            components.html(receipt_html, height=450, scrolling=True)
+
+    # ==================== 🔄 ITEM RETURN & EXCHANGE ====================
+    elif st.session_state["current_page"] == "Returns":
+        st.title("🔄 Item Return & Exchange System")
+
+        df_sales = load_data(SALES_FILE)
+        df_products = load_data(PRODUCT_FILE)
+        df_returns = load_data(RETURNS_FILE)
+
+        inv_search = st.text_input("🔍 Enter Invoice ID to Search Sale Record:")
+        
+        if inv_search:
+            matched_sales = df_sales[(df_sales["Invoice ID"] == inv_search) & (df_sales["Is_Deleted"] == False)]
+            if not matched_sales.empty:
+                st.subheader("Invoice Sold Items")
+                st.dataframe(matched_sales[["Product Name", "Code", "Total Price", "Quantity (Pcs)", "Meter Amount", "Yard Amount"]], use_container_width=True)
+
+                ret_item = st.selectbox("Select Returned Item:", matched_sales["Code"].astype(str) + " - " + matched_sales["Product Name"])
+                ret_code = ret_item.split(" - ")[0]
+                ret_qty = st.number_input("Enter Returned Quantity (Pcs):", min_value=1.0, step=1.0)
+                reason = st.text_input("Reason for Item Return:")
+
+                if st.button("✅ Process Return and Restock Inventory"):
+                    df_products.loc[df_products["Code"].astype(str) == ret_code, "Total Quantity (Pcs)"] += ret_qty
+                    save_data(df_products, PRODUCT_FILE)
+
+                    new_ret = {
+                        "Date": datetime.now().strftime("%Y-%m-%d"),
+                        "Invoice ID": inv_search,
+                        "Product Name": ret_item.split(" - ")[1],
+                        "Code": ret_code,
+                        "Returned Qty": ret_qty,
+                        "Refund Amount": 0.0,
+                        "Reason": reason
+                    }
+                    df_returns = pd.concat([df_returns, pd.DataFrame([new_ret])], ignore_index=True)
+                    save_data(df_returns, RETURNS_FILE)
+
+                    st.success("Item successfully returned and stock restocked!")
                     st.rerun()
-                else:
-                    if pay_amount > 0:
-                        new_balance = current_due - pay_amount
-                        df_cred.loc[df_cred["Customer Name"] == sel_cust, "Due Balance"] = new_balance
-                        df_cred.loc[df_cred["Customer Name"] == sel_cust, "Last Date"] = now_str
-                        save_data(df_cred, CREDIT_FILE)
-                        st.success(f"✅ Rs. {pay_amount:,.2f} ක ගෙවීම සටහන් විය. ඉතිරි ණය මුදල: Rs. {new_balance:,.2f}")
-                        st.rerun()
-                    else:
-                        st.error("කරුණාකර ගෙවූ මුදල ඇතුළත් කරන්න.")
+            else:
+                st.warning("No sales record found matching this Invoice ID.")
+
+        st.markdown("---")
+        st.subheader("📋 Return History Logs")
+        if not df_returns.empty:
+            st.dataframe(df_returns, use_container_width=True)
+
+    # ==================== 📈 REPORTS & ANALYTICS ====================
+    elif st.session_state["current_page"] == "Reports":
+        st.title("📈 Reports & Business Analytics")
+
+        df_sales = load_data(SALES_FILE)
+        df_exp = load_data(EXPENSES_FILE)
+
+        if not df_sales.empty:
+            st.subheader("📊 Sales Revenue Trend Chart")
+            daily_sales = df_sales.groupby("Date")["Total Price"].sum()
+            st.line_chart(daily_sales)
+
+            m1, m2, m3 = st.columns(3)
+            total_rev = df_sales['Total Price'].sum()
+            total_prof = df_sales['Profit'].sum()
+            total_exp = df_exp['Amount'].sum() if not df_exp.empty else 0.0
+
+            m1.metric("💰 Total Revenue", f"Rs. {total_rev:,.2f}")
+            m2.metric("📦 Gross Profit", f"Rs. {total_prof:,.2f}")
+            m3.metric("💸 Expenses", f"Rs. {total_exp:,.2f}")
+
+            st.markdown("---")
+            st.subheader("📜 Comprehensive Sales Register")
+            st.dataframe(
+                df_sales[["Invoice ID", "Date", "Time", "Product Name", "Total Price", "Profit", "Payment Method", "Customer"]],
+                use_container_width=True
+            )
         else:
-            st.info("ණය හිඟ මුදල් නොමැත.")
+            st.info("No sales records available to generate analytics.")
 
-    # ==================== 11. RECYCLE BIN (WITH PERMANENT DELETE) ====================
+    # ==================== 📖 CREDIT BOOK ====================
+    elif st.session_state["current_page"] == "Credit Book":
+        st.title("📖 Udara Book (Customer Credit Ledger)")
+
+        df_credit = load_data(CREDIT_FILE)
+
+        with st.form("add_credit_form", clear_on_submit=True):
+            st.subheader("➕ Record New Customer Debt")
+            c_name = st.text_input("Customer Full Name")
+            c_phone = st.text_input("Contact Phone Number")
+            c_due = st.number_input("Outstanding Balance (Rs.)", min_value=0.0, format="%.2f")
+
+            if st.form_submit_button("Save Ledger Record"):
+                if c_name:
+                    new_cred = {
+                        "Customer Name": c_name,
+                        "Phone": c_phone,
+                        "Due Balance": c_due,
+                        "Last Date": datetime.now().strftime("%Y-%m-%d"),
+                        "Is_Deleted": False
+                    }
+                    df_credit = pd.concat([df_credit, pd.DataFrame([new_cred])], ignore_index=True)
+                    save_data(df_credit, CREDIT_FILE)
+                    st.success("Credit entry created successfully!")
+                    st.rerun()
+
+        st.markdown("---")
+        st.subheader("📋 Active Outstanding Balances")
+        if not df_credit.empty:
+            st.dataframe(df_credit[df_credit["Is_Deleted"] == False], use_container_width=True)
+
+    # ==================== 👥 CUSTOMER MANAGEMENT ====================
+    elif st.session_state["current_page"] == "Customers":
+        st.title("👥 Customer & Loyalty Management")
+
+        df_cust = load_data(CUSTOMER_FILE)
+
+        with st.form("add_cust_form", clear_on_submit=True):
+            st.subheader("➕ Register New Client")
+            cust_n = st.text_input("Customer Name")
+            cust_p = st.text_input("Mobile Number")
+
+            if st.form_submit_button("Register Customer"):
+                if cust_n:
+                    new_c = {
+                        "Customer Name": cust_n,
+                        "Phone": cust_p,
+                        "Loyalty Points": 0,
+                        "Is_Deleted": False
+                    }
+                    df_cust = pd.concat([df_cust, pd.DataFrame([new_c])], ignore_index=True)
+                    save_data(df_cust, CUSTOMER_FILE)
+                    st.success("Customer account created!")
+                    st.rerun()
+
+        st.markdown("---")
+        st.subheader("📋 Registered Customer Directory")
+        if not df_cust.empty:
+            st.dataframe(df_cust[df_cust["Is_Deleted"] == False], use_container_width=True)
+
+    # ==================== 📊 STOCK & REORDER ALERTS ====================
+    elif st.session_state["current_page"] == "Stock":
+        st.title("📊 Stock Inventory & Reorder Warnings")
+
+        df_p = load_data(PRODUCT_FILE)
+        active_p = df_p[df_p["Is_Deleted"] == False] if not df_p.empty else pd.DataFrame()
+
+        if not active_p.empty:
+            low_stock = active_p[active_p["Total Quantity (Pcs)"] <= active_p["Min Threshold"]]
+            if not low_stock.empty:
+                st.error("⚠️ Low Stock Alert! The following products need restock urgently:")
+                st.dataframe(low_stock[["Code", "Product Name", "Total Quantity (Pcs)", "Min Threshold", "Supplier"]], use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("📦 Inventory Master Stock List")
+            st.dataframe(active_p[["Code", "Product Name", "Total Meter", "Total Yard", "Total Quantity (Pcs)", "Min Threshold", "Supplier"]], use_container_width=True)
+
+    # ==================== 💸 EXPENSE TRACKER ====================
+    elif st.session_state["current_page"] == "Expenses":
+        st.title("💸 Store Expense Tracker")
+
+        df_exp = load_data(EXPENSES_FILE)
+
+        with st.form("add_exp_form", clear_on_submit=True):
+            st.subheader("➕ Record Shop Expense")
+            exp_desc = st.text_input("Expense Description (e.g. Rent, Electricity, Tea)")
+            exp_amt = st.number_input("Expense Amount (Rs.)", min_value=0.0, format="%.2f")
+
+            if st.form_submit_button("Save Expense Record"):
+                if exp_desc and exp_amt > 0:
+                    new_e = {
+                        "Date": datetime.now().strftime("%Y-%m-%d"),
+                        "Description": exp_desc,
+                        "Amount": exp_amt,
+                        "Is_Deleted": False
+                    }
+                    df_exp = pd.concat([df_exp, pd.DataFrame([new_e])], ignore_index=True)
+                    save_data(df_exp, EXPENSES_FILE)
+                    st.success("Expense recorded successfully!")
+                    st.rerun()
+
+        st.markdown("---")
+        st.subheader("📋 Store Expense Ledger")
+        if not df_exp.empty:
+            st.dataframe(df_exp[df_exp["Is_Deleted"] == False], use_container_width=True)
+
+    # ==================== 🏭 SUPPLIER MANAGEMENT ====================
+    elif st.session_state["current_page"] == "Suppliers":
+        st.title("🏭 Supplier & Vendor Management")
+
+        df_sup = load_data(SUPPLIER_FILE)
+
+        with st.form("add_sup_form", clear_on_submit=True):
+            st.subheader("➕ Add New Vendor")
+            sup_n = st.text_input("Supplier Contact Person")
+            sup_p = st.text_input("Phone Number")
+            sup_c = st.text_input("Company / Brand Name")
+
+            if st.form_submit_button("Save Supplier Profile"):
+                if sup_n:
+                    new_s = {
+                        "Supplier Name": sup_n,
+                        "Phone": sup_p,
+                        "Company": sup_c,
+                        "Pending Payable": 0.0,
+                        "Is_Deleted": False
+                    }
+                    df_sup = pd.concat([df_sup, pd.DataFrame([new_s])], ignore_index=True)
+                    save_data(df_sup, SUPPLIER_FILE)
+                    st.success("Supplier profile created!")
+                    st.rerun()
+
+        st.markdown("---")
+        st.subheader("📋 Registered Vendors")
+        if not df_sup.empty:
+            st.dataframe(df_sup[df_sup["Is_Deleted"] == False], use_container_width=True)
+
+    # ==================== 🗑️ RECYCLE BIN ====================
     elif st.session_state["current_page"] == "Recycle Bin":
-        st.title("🗑️ Recycle Bin (Trash System)")
-        st.info("මෙතැනින් මකා දැමූ දත්ත නැවත ලබාගැනීමට (Restore) හෝ පද්ධතියෙන්ම සම්පූර්ණයෙන්ම ඉවත් කිරීමට (Permanently Delete) හැක.")
+        st.title("🗑️ Recycle Bin (Trash & Restore System)")
 
-        tab1, tab2, tab3, tab4 = st.tabs(["📦 Products Trash", "🧾 Sales Trash", "💸 Expenses Trash", "📖 Credit Trash"])
+        df_p = load_data(PRODUCT_FILE)
+        deleted_p = df_p[df_p["Is_Deleted"] == True] if not df_p.empty else pd.DataFrame()
 
-        # Tab 1: Products
-        with tab1:
-            df_p = load_data(PRODUCT_FILE)
-            deleted_p = df_p[df_p["Is_Deleted"] == True] if not df_p.empty else pd.DataFrame()
-            if not deleted_p.empty:
-                st.dataframe(deleted_p.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_code = st.selectbox("Product එක තෝරන්න:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"], key="p_bin_select")
-                code_val = rest_code.split(" - ")[0]
-
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    if st.button("🔄 Restore Product"):
-                        df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
-                        save_data(df_p, PRODUCT_FILE)
-                        st.success("Product එක නැවත Restore කරන ලදී!")
-                        st.rerun()
-                with btn_col2:
-                    if st.button("❌ Permanently Delete Product", type="primary"):
-                        df_p = df_p[df_p["Code"].astype(str) != code_val]
-                        save_data(df_p, PRODUCT_FILE)
-                        st.success("Product එක පද්ධතියෙන්ම ස්ථිරවම ඉවත් කරන ලදී!")
-                        st.rerun()
-            else:
-                st.write("මකා දමන ලද Products නොමැත.")
-
-        # Tab 2: Sales
-        with tab2:
-            df_s = load_data(SALES_FILE)
-            deleted_s = df_s[df_s["Is_Deleted"] == True] if not df_s.empty else pd.DataFrame()
-            if not deleted_s.empty:
-                st.dataframe(deleted_s.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_s_idx = st.selectbox("Sales Record එක තෝරන්න:", deleted_s.index, key="s_bin_select")
-
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    if st.button("🔄 Restore Sale Record"):
-                        df_s.loc[rest_s_idx, "Is_Deleted"] = False
-                        save_data(df_s, SALES_FILE)
-                        st.success("Sales record එක නැවත Restore කරන ලදී!")
-                        st.rerun()
-                with btn_col2:
-                    if st.button("❌ Permanently Delete Sale Record", type="primary"):
-                        df_s = df_s.drop(index=rest_s_idx)
-                        save_data(df_s, SALES_FILE)
-                        st.success("Sales record එක ස්ථිරවම ඉවත් කරන ලදී!")
-                        st.rerun()
-            else:
-                st.write("මකා දමන ලද Sales records නොමැත.")
-
-        # Tab 3: Expenses
-        with tab3:
-            df_e = load_data(EXPENSES_FILE)
-            deleted_e = df_e[df_e["Is_Deleted"] == True] if not df_e.empty else pd.DataFrame()
-            if not deleted_e.empty:
-                st.dataframe(deleted_e.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_e_idx = st.selectbox("Expense එක තෝරන්න:", deleted_e.index, key="e_bin_select")
-
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    if st.button("🔄 Restore Expense"):
-                        df_e.loc[rest_e_idx, "Is_Deleted"] = False
-                        save_data(df_e, EXPENSES_FILE)
-                        st.success("Expense එක නැවත Restore කරන ලදී!")
-                        st.rerun()
-                with btn_col2:
-                    if st.button("❌ Permanently Delete Expense", type="primary"):
-                        df_e = df_e.drop(index=rest_e_idx)
-                        save_data(df_e, EXPENSES_FILE)
-                        st.success("Expense එක ස්ථිරවම ඉවත් කරන ලදී!")
-                        st.rerun()
-            else:
-                st.write("මකා දමන ලද Expenses නොමැත.")
-
-        # Tab 4: Credit Book
-        with tab4:
-            df_c = load_data(CREDIT_FILE)
-            deleted_c = df_c[df_c["Is_Deleted"] == True] if not df_c.empty else pd.DataFrame()
-            if not deleted_c.empty:
-                st.dataframe(deleted_c.drop(columns=["Is_Deleted"], errors="ignore"), use_container_width=True)
-                rest_c_cust = st.selectbox("Customer තෝරන්න:", deleted_c["Customer Name"].unique(), key="c_bin_select")
-
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    if st.button("🔄 Restore Credit Record"):
-                        df_c.loc[df_c["Customer Name"] == rest_c_cust, "Is_Deleted"] = False
-                        save_data(df_c, CREDIT_FILE)
-                        st.success("ණය සටහන නැවත Udara Book එකට Restore කරන ලදී!")
-                        st.rerun()
-                with btn_col2:
-                    if st.button("❌ Permanently Delete Credit Record", type="primary"):
-                        df_c = df_c[df_c["Customer Name"] != rest_c_cust]
-                        save_data(df_c, CREDIT_FILE)
-                        st.success("ණය සටහන ස්ථිරවම ඉවත් කරන ලදී!")
-                        st.rerun()
-            else:
-                st.write("මකා දමන ලද හෝ පියවූ ණය සටහන් නොමැත.")
+        if not deleted_p.empty:
+            st.subheader("Deleted Product Items")
+            st.dataframe(deleted_p[["Code", "Product Name", "Selling Price", "Supplier"]], use_container_width=True)
+            
+            res_code = st.selectbox("Select Product to Restore:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"])
+            
+            if st.button("🔄 Restore Selected Product"):
+                code_val = res_code.split(" - ")[0]
+                df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
+                save_data(df_p, PRODUCT_FILE)
+                st.success("Product successfully restored to Active Inventory!")
+                st.rerun()
+        else:
+            st.info("The Recycle Bin is empty.")
