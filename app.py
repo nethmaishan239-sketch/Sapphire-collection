@@ -33,7 +33,7 @@ def init_files():
         ])
         df_p.to_csv(PRODUCT_FILE, index=False)
 
-    if not os.path.exists(SALES_FILE) or os.stat(SALES_FILE).st_size == 0:
+    if not os.stat(SALES_FILE).st_size == 0 if os.path.exists(SALES_FILE) else True:
         df_s = pd.DataFrame(columns=[
             "Invoice ID", "Date", "Time", "Product Name", "Code", 
             "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Warranty", 
@@ -417,7 +417,7 @@ else:
                     st.write("---")
                     st.subheader("💳 Checkout & Bill Settlement")
                     
-                    cust_phone = st.text_input("📱 Customer WhatsApp Number (e.g., 94771234567):")
+                    cust_phone = st.text_input("📱 Customer Phone Number (e.g. 0771234567):")
                     pay_method = st.selectbox("Select Payment Channel:", ["Cash", "Card", "Online Transfer / QR", "Credit (ණය)"])
 
                     if st.button("✅ Complete Transaction & Finalize Sale", type="primary", use_container_width=True):
@@ -429,7 +429,6 @@ else:
                             p_code_val = item["Code"]
                             p_row = df_products[df_products["Code"].astype(str) == p_code_val].iloc[0]
 
-                            # Update inventory stock levels
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Meter"] = max(0, float(p_row["Total Meter"]) - item["Meter Amount"])
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Yard"] = max(0, float(p_row["Total Yard"]) - item["Yard Amount"])
                             df_products.loc[df_products["Code"].astype(str) == p_code_val, "Total Quantity (Pcs)"] = max(0, float(p_row["Total Quantity (Pcs)"]) - item["Quantity (Pcs)"])
@@ -463,15 +462,16 @@ else:
                 else:
                     st.info("The cart is currently empty.")
 
-        # Thermal Receipt Section
+        # Thermal Receipt & Normal SMS Section
         if st.session_state["last_invoice"]:
             inv_data = st.session_state["last_invoice"]
             st.markdown("---")
-            st.subheader("🖨️ Receipt Terminal & Digital Sharing")
+            st.subheader("🖨️ Receipt Terminal & Normal SMS Sharing")
 
             if inv_data["phone"]:
-                msg = f"Thank you for shopping at Sapphire Collection! Invoice: {inv_data['inv_id']}, Total: Rs.{inv_data['total']:,.2f}"
-                st.markdown(f"[📲 Click Here to Send Receipt via WhatsApp](https://wa.me/{inv_data['phone']}?text={msg.replace(' ', '%20')})")
+                sms_body = f"Sapphire Collection: Invoice {inv_data['inv_id']} Total: Rs.{inv_data['total']:,.2f}. Thank you!"
+                sms_url = f"sms:{inv_data['phone']}?body={sms_body.replace(' ', '%20')}"
+                st.markdown(f"[📲 Click Here to Send Normal SMS (Message App)]({sms_url})")
 
             receipt_html = f"""
             <html>
