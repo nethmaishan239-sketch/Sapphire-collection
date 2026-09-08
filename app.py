@@ -212,7 +212,7 @@ else:
 
         if st.session_state["user_role"] == "Admin":
             st.markdown("<br><hr>", unsafe_allow_html=True)
-            if st.button("🗑️ Recycle Bin (මකන ලද දත්ත නැවත ලබාගැනීම)", use_container_width=True):
+            if st.button("🗑️ Recycle Bin (මකන ලද දත්ත නැවත ලබාගැනීම / සම්පූර්ණයෙන්ම ඉවත් කිරීම)", use_container_width=True):
                 st.session_state["current_page"] = "Recycle Bin"
                 st.rerun()
 
@@ -275,24 +275,25 @@ else:
 
                 if st.form_submit_button("Save Product Record"):
                     if p_code and p_name:
-                        new_data = {
-                            "Code": p_code, 
-                            "Product Name": p_name, 
-                            "Cost Price": p_cost,
-                            "Selling Price": p_sell, 
-                            "Total Meter": p_meter, 
-                            "Total Yard": p_yard,
-                            "Total Quantity (Pcs)": p_qty, 
-                            "Total Kg": p_kg, 
-                            "Total Liter": p_liter,
-                            "Min Threshold": p_min, 
-                            "Supplier": p_sup, 
+                        new_row = pd.DataFrame([{
+                            "Code": str(p_code), 
+                            "Product Name": str(p_name), 
+                            "Cost Price": float(p_cost),
+                            "Selling Price": float(p_sell), 
+                            "Total Meter": float(p_meter), 
+                            "Total Yard": float(p_yard),
+                            "Total Quantity (Pcs)": float(p_qty), 
+                            "Total Kg": float(p_kg), 
+                            "Total Liter": float(p_liter),
+                            "Min Threshold": float(p_min), 
+                            "Supplier": str(p_sup), 
                             "Is_Deleted": False
-                        }
-                        if not df_products.empty and p_code in df_products["Code"].astype(str).values:
-                            df_products.loc[df_products["Code"].astype(str) == p_code] = new_data
-                        else:
-                            df_products = pd.concat([df_products, pd.DataFrame([new_data])], ignore_index=True)
+                        }])
+
+                        if not df_products.empty and str(p_code) in df_products["Code"].astype(str).values:
+                            df_products = df_products[df_products["Code"].astype(str) != str(p_code)]
+
+                        df_products = pd.concat([df_products, new_row], ignore_index=True)
 
                         save_data(df_products, PRODUCT_FILE)
                         st.success("Product Saved Successfully!")
@@ -390,7 +391,6 @@ else:
                 if len(st.session_state["cart"]) > 0:
                     subtotal = 0.0
                     
-                    # Cart Table Header
                     c_h1, c_h2, c_h3, c_h4 = st.columns([2.5, 1, 1.5, 0.8])
                     c_h1.write("**Product Name**")
                     c_h2.write("**Qty**")
@@ -398,14 +398,12 @@ else:
                     c_h4.write("**Remove**")
                     st.markdown("---")
 
-                    # Loop through items with individual remove button
                     for idx, item in enumerate(st.session_state["cart"]):
                         c1, c2, c3, c4 = st.columns([2.5, 1, 1.5, 0.8])
                         c1.write(item["Product Name"])
                         c2.write(f"{item['Total Qty']}")
                         c3.write(f"{item['Total Price']:,.2f}")
                         
-                        # Delete specific single item button
                         if c4.button("🗑️", key=f"del_cart_{idx}"):
                             st.session_state["cart"].pop(idx)
                             st.rerun()
@@ -432,7 +430,6 @@ else:
                         for item in st.session_state["cart"]:
                             p_code_val = item["Code"]
                             
-                            # Deduct Stock Levels
                             if p_code_val in df_products["Code"].astype(str).values:
                                 p_idx = df_products[df_products["Code"].astype(str) == p_code_val].index[0]
                                 df_products.loc[p_idx, "Total Meter"] = max(0.0, float(df_products.loc[p_idx, "Total Meter"]) - item["Meter Amount"])
@@ -471,7 +468,6 @@ else:
                 else:
                     st.info("Cart is currently empty.")
 
-        # Thermal Receipt View
         if st.session_state.get("last_invoice"):
             st.markdown("---")
             st.subheader("🖨️ Printable Thermal Receipt")
@@ -696,22 +692,32 @@ else:
             else:
                 st.error("No invoice records found for the given ID.")
 
-    # ==================== 19. RECYCLE BIN (RESTORE DATA) ====================
+    # ==================== 19. RECYCLE BIN (RESTORE / PERMANENT DELETE) ====================
     elif st.session_state["current_page"] == "Recycle Bin":
-        st.title("🗑️ System Recycle Bin & Data Restoration")
+        st.title("🗑️ System Recycle Bin & Data Management")
         df_p = load_data(PRODUCT_FILE)
         deleted_p = df_p[df_p["Is_Deleted"] == True] if not df_p.empty else pd.DataFrame()
 
         if not deleted_p.empty:
             st.subheader("Deleted Product Records:")
             st.dataframe(deleted_p[["Code", "Product Name", "Selling Price", "Supplier"]], use_container_width=True)
-            res_code = st.selectbox("Select Product to Restore Back to Inventory:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"])
+            res_code = st.selectbox("Select Product:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"])
+            code_val = res_code.split(" - ")[0]
+
+            col_btn1, col_btn2 = st.columns(2)
             
-            if st.button("🔄 Restore Selected Product"):
-                code_val = res_code.split(" - ")[0]
-                df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
-                save_data(df_p, PRODUCT_FILE)
-                st.success("Product successfully restored to active catalogue!")
-                st.rerun()
+            with col_btn1:
+                if st.button("🔄 Restore Selected Product", use_container_width=True):
+                    df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
+                    save_data(df_p, PRODUCT_FILE)
+                    st.success("Product successfully restored to active catalogue!")
+                    st.rerun()
+
+            with col_btn2:
+                if st.button("❌ Permanently Delete Product", type="primary", use_container_width=True):
+                    df_p = df_p[df_p["Code"].astype(str) != code_val]
+                    save_data(df_p, PRODUCT_FILE)
+                    st.warning("Product permanently deleted from database!")
+                    st.rerun()
         else:
             st.info("Recycle bin is completely empty.")
