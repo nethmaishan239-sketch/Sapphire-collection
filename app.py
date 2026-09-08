@@ -53,7 +53,7 @@ def init_files():
         df_cu = pd.DataFrame(columns=["Customer Name", "Phone", "Loyalty Points", "Is_Deleted"])
         df_cu.to_csv(CUSTOMER_FILE, index=False)
 
-    if not os.path.exists(SUPPLIER_FILE) or os.stat(SUPPLIER_FILE).st_size == 0:
+    if not os.stat(SUPPLIER_FILE).st_size == 0 if os.path.exists(SUPPLIER_FILE) else True:
         df_su = pd.DataFrame(columns=["Supplier Name", "Phone", "Company", "Pending Payable", "Is_Deleted"])
         df_su.to_csv(SUPPLIER_FILE, index=False)
 
@@ -527,7 +527,7 @@ else:
                 use_container_width=True
             )
         else:
-            st.info("No sales records available to generate analytics. (විකුණුම් වාර්තා නොමැත)")
+            st.info("No sales records available to generate analytics.")
 
     # ==================== 13. STOCK LEVELS & REORDER ALERTS ====================
     elif st.session_state["current_page"] == "Stock":
@@ -611,38 +611,79 @@ else:
             if not df_sup.empty:
                 st.dataframe(df_sup[df_sup["Is_Deleted"] == False][["Supplier Name", "Phone", "Company"]], use_container_width=True)
 
-    # ==================== 16. UDARA BOOK (CREDIT LEDGER) ====================
+    # ==================== 16. UDARA BOOK (CREDIT LEDGER) FIXED ====================
     elif st.session_state["current_page"] == "Credit Book":
         st.title("📖 Udara Book - Customer Credit Ledger (ණය පොත)")
         df_credit = load_data(CREDIT_FILE)
+        active_credit = df_credit[df_credit["Is_Deleted"] == False] if not df_credit.empty else pd.DataFrame()
 
         col1, col2 = st.columns([1, 1])
 
         with col1:
-            st.subheader("➕ Record Credit / Due Payment")
+            st.subheader("➕ Record New Credit / Add Due")
             with st.form("add_credit_form", clear_on_submit=True):
-                c_name = st.text_input("Customer Name")
-                c_phone = st.text_input("Phone Number")
-                c_due = st.number_input("Due Balance Amount (Rs.)", min_value=0.0, format="%.2f")
+                c_name = st.text_input("Customer Name (පාරිභෝගික නම)").strip()
+                c_phone = st.text_input("Phone Number (දුරකථන අංකය)").strip()
+                c_due = st.number_input("Credit Amount to Add (ණය මුදල Rs.)", min_value=0.0, format="%.2f")
 
                 if st.form_submit_button("Save Ledger Entry"):
-                    if c_name:
-                        new_cred = {
-                            "Customer Name": c_name, 
-                            "Phone": c_phone, 
-                            "Due Balance": c_due, 
-                            "Last Date": datetime.now().strftime("%Y-%m-%d"), 
-                            "Is_Deleted": False
-                        }
-                        df_credit = pd.concat([df_credit, pd.DataFrame([new_cred])], ignore_index=True)
+                    if c_name and c_due > 0:
+                        # Case-insensitive Name Matching
+                        existing_match = df_credit[
+                            (df_credit["Customer Name"].str.lower() == c_name.lower()) & 
+                            (df_credit["Is_Deleted"] == False)
+                        ]
+                        
+                        if not existing_match.empty:
+                            idx = existing_match.index[0]
+                            df_credit.loc[idx, "Due Balance"] = float(df_credit.loc[idx, "Due Balance"]) + float(c_due)
+                            df_credit.loc[idx, "Last Date"] = datetime.now().strftime("%Y-%m-%d")
+                        else:
+                            new_cred = {
+                                "Customer Name": str(c_name), 
+                                "Phone": str(c_phone), 
+                                "Due Balance": float(c_due), 
+                                "Last Date": datetime.now().strftime("%Y-%m-%d"), 
+                                "Is_Deleted": False
+                            }
+                            df_credit = pd.concat([df_credit, pd.DataFrame([new_cred])], ignore_index=True)
+                        
                         save_data(df_credit, CREDIT_FILE)
-                        st.success("Credit Entry Saved!")
+                        st.success("Credit Entry Saved Successfully!")
                         st.rerun()
 
         with col2:
-            st.subheader("📋 Active Customer Credit Records")
-            if not df_credit.empty:
-                st.dataframe(df_credit[df_credit["Is_Deleted"] == False][["Customer Name", "Phone", "Due Balance", "Last Date"]], use_container_width=True)
+            st.subheader("💵 Settle / Pay Due Balance (ණය ගෙවීම)")
+            # ණය මුදලක් (Due Balance > 0) ඇති අය පමණක් තේරීම
+            pending_credits = active_credit[active_credit["Due Balance"] > 0] if not active_credit.empty else pd.DataFrame()
+            
+            if not pending_credits.empty:
+                with st.form("settle_credit_form", clear_on_submit=True):
+                    cust_options = pending_credits["Customer Name"].tolist()
+                    sel_cust = st.selectbox("Select Customer to Settle:", cust_options)
+                    
+                    curr_due = float(pending_credits[pending_credits["Customer Name"] == sel_cust]["Due Balance"].iloc[0])
+                    st.info(f"Current Balance Due for **{sel_cust}**: **Rs. {curr_due:,.2f}**")
+                    
+                    pay_amt = st.number_input("Paid Amount by Customer (ගෙවන ලද මුදල Rs.)", min_value=0.0, max_value=curr_due, format="%.2f")
+
+                    if st.form_submit_button("✅ Deduct Paid Amount (ණය මුදලින් අඩු කරන්න)"):
+                        if pay_amt > 0:
+                            idx = df_credit[(df_credit["Customer Name"] == sel_cust) & (df_credit["Is_Deleted"] == False)].index[0]
+                            new_bal = curr_due - pay_amt
+                            df_credit.loc[idx, "Due Balance"] = new_bal
+                            df_credit.loc[idx, "Last Date"] = datetime.now().strftime("%Y-%m-%d")
+                            
+                            save_data(df_credit, CREDIT_FILE)
+                            st.success(f"Payment Recorded! Remaining Balance: Rs. {new_bal:,.2f}")
+                            st.rerun()
+            else:
+                st.info("🎉 No pending customer credits to settle! (සියලු ණය ගෙවා අවසන්)")
+
+        st.markdown("---")
+        st.subheader("📋 Active Customer Credit Records Log")
+        if not active_credit.empty:
+            st.dataframe(active_credit[["Customer Name", "Phone", "Due Balance", "Last Date"]], use_container_width=True)
 
     # ==================== 17. CUSTOMER & LOYALTY ====================
     elif st.session_state["current_page"] == "Customers":
@@ -670,7 +711,7 @@ else:
             if not df_cust.empty:
                 st.dataframe(df_cust[df_cust["Is_Deleted"] == False][["Customer Name", "Phone", "Loyalty Points"]], use_container_width=True)
 
-    # ==================== 18. ITEM RETURNS SYSTEM ====================
+    # ==================== 18. ITEM RETURNS SYSTEM (FIXED & FULLY WORKING) ====================
     elif st.session_state["current_page"] == "Returns":
         st.title("🔄 Item Return & Refund Processing")
         df_sales = load_data(SALES_FILE)
@@ -682,17 +723,65 @@ else:
             matched = df_sales[df_sales["Invoice ID"] == inv_search] if not df_sales.empty else pd.DataFrame()
             if not matched.empty:
                 st.subheader("Invoice Items Found:")
-                st.dataframe(matched[["Product Name", "Code", "Total Price", "Meter Amount", "Yard Amount", "Quantity (Pcs)"]], use_container_width=True)
+                st.dataframe(matched[["Product Name", "Code", "Selling Price", "Meter Amount", "Yard Amount", "Quantity (Pcs)", "Kg Amount", "Liter Amount", "Total Price"]], use_container_width=True)
 
-                ret_p = st.selectbox("Select Item to Return:", matched["Code"].astype(str) + " - " + matched["Product Name"])
-                ret_reason = st.text_area("Reason for Return / Refund:")
+                with st.form("process_return_form"):
+                    ret_p = st.selectbox("Select Item to Return:", matched["Code"].astype(str) + " - " + matched["Product Name"])
+                    sel_code = ret_p.split(" - ")[0]
+                    item_matched = matched[matched["Code"].astype(str) == sel_code].iloc[0]
 
-                if st.button("Process Return & Restock"):
-                    st.success("Item process record updated successfully!")
+                    st.write("**Specify Units to Return / Restock:**")
+                    col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns(5)
+                    ret_m = col_r1.number_input("Meter:", min_value=0.0, max_value=float(item_matched.get("Meter Amount", 0)), step=0.1)
+                    ret_y = col_r2.number_input("Yard:", min_value=0.0, max_value=float(item_matched.get("Yard Amount", 0)), step=0.1)
+                    ret_q = col_r3.number_input("Pcs:", min_value=0.0, max_value=float(item_matched.get("Quantity (Pcs)", 0)), step=1.0)
+                    ret_kg = col_r4.number_input("Kg:", min_value=0.0, max_value=float(item_matched.get("Kg Amount", 0)), step=0.05)
+                    ret_l = col_r5.number_input("Liter:", min_value=0.0, max_value=float(item_matched.get("Liter Amount", 0)), step=0.05)
+
+                    ret_qty_total = ret_m + ret_y + ret_q + ret_kg + ret_l
+                    refund_amt = ret_qty_total * float(item_matched["Selling Price"])
+                    
+                    st.info(f"Calculated Refund Amount: **Rs. {refund_amt:,.2f}**")
+                    ret_reason = st.text_area("Reason for Return / Refund:")
+
+                    if st.form_submit_button("✅ Process Return & Restock Product"):
+                        if ret_qty_total > 0:
+                            # 1. Update Product Stock (Restock)
+                            if sel_code in df_products["Code"].astype(str).values:
+                                p_idx = df_products[df_products["Code"].astype(str) == sel_code].index[0]
+                                df_products.loc[p_idx, "Total Meter"] = float(df_products.loc[p_idx, "Total Meter"]) + ret_m
+                                df_products.loc[p_idx, "Total Yard"] = float(df_products.loc[p_idx, "Total Yard"]) + ret_y
+                                df_products.loc[p_idx, "Total Quantity (Pcs)"] = float(df_products.loc[p_idx, "Total Quantity (Pcs)"]) + ret_q
+                                df_products.loc[p_idx, "Total Kg"] = float(df_products.loc[p_idx, "Total Kg"]) + ret_kg
+                                df_products.loc[p_idx, "Total Liter"] = float(df_products.loc[p_idx, "Total Liter"]) + ret_l
+                                save_data(df_products, PRODUCT_FILE)
+
+                            # 2. Add Entry to returns.csv
+                            new_return = {
+                                "Date": datetime.now().strftime("%Y-%m-%d"),
+                                "Invoice ID": inv_search,
+                                "Product Name": item_matched["Product Name"],
+                                "Code": sel_code,
+                                "Returned Qty": ret_qty_total,
+                                "Refund Amount": refund_amt,
+                                "Reason": ret_reason
+                            }
+                            df_returns = pd.concat([df_returns, pd.DataFrame([new_return])], ignore_index=True)
+                            save_data(df_returns, RETURNS_FILE)
+
+                            st.success(f"Return Processed! Product Restocked and Rs. {refund_amt:,.2f} Refunded.")
+                            st.rerun()
+                        else:
+                            st.warning("Please specify return quantity greater than zero.")
             else:
                 st.error("No invoice records found for the given ID.")
 
-    # ==================== 19. RECYCLE BIN (RESTORE / PERMANENT DELETE) ====================
+        st.markdown("---")
+        st.subheader("📜 Return History Log")
+        if not df_returns.empty:
+            st.dataframe(df_returns, use_container_width=True)
+
+    # ==================== 19. RECYCLE BIN (FIXED RESTORE & DELETE) ====================
     elif st.session_state["current_page"] == "Recycle Bin":
         st.title("🗑️ System Recycle Bin & Data Management")
         df_p = load_data(PRODUCT_FILE)
@@ -701,6 +790,7 @@ else:
         if not deleted_p.empty:
             st.subheader("Deleted Product Records:")
             st.dataframe(deleted_p[["Code", "Product Name", "Selling Price", "Supplier"]], use_container_width=True)
+            
             res_code = st.selectbox("Select Product:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"])
             code_val = res_code.split(" - ")[0]
 
