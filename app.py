@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import barcode
 from barcode.writer import ImageWriter
+import urllib.parse
 
 # ==================== 1. PAGE CONFIGURATION ====================
 st.set_page_config(
@@ -418,7 +419,7 @@ else:
                         st.rerun()
 
                     st.markdown("---")
-                    cust_phone = st.text_input("📱 Customer Phone Number (Optional):")
+                    cust_phone = st.text_input("📱 Customer Phone Number (Optional):").strip()
                     pay_method = st.selectbox("Payment Method:", ["Cash", "Card", "Online Transfer", "Credit"])
 
                     if st.button("✅ Checkout & Print Receipt", type="primary", use_container_width=True):
@@ -459,7 +460,8 @@ else:
                             "date": now_str,
                             "items": st.session_state["cart"],
                             "total": subtotal,
-                            "payment": pay_method
+                            "payment": pay_method,
+                            "phone": cust_phone if cust_phone else ""
                         }
 
                         st.session_state["cart"] = []
@@ -493,7 +495,47 @@ else:
                 <p style="text-align: center;">Thank You Come Again!</p>
             </div>
             """
-            st.components.v1.html(receipt_html, height=400)
+            st.components.v1.html(receipt_html, height=380)
+
+            # ==================== DEVICE WEB INTENT SMS BUTTON ====================
+            cust_phone_val = inv.get("phone", "").strip()
+            if cust_phone_val:
+                # Format phone number for Sri Lanka (+94)
+                if cust_phone_val.startswith("0"):
+                    formatted_phone = "+94" + cust_phone_val[1:]
+                elif not cust_phone_val.startswith("+"):
+                    formatted_phone = "+94" + cust_phone_val
+                else:
+                    formatted_phone = cust_phone_val
+
+                sms_msg = f"Thank you for shopping at Sapphire Collection! Invoice: {inv['id']}, Total: Rs.{inv['total']:,.2f}. Thank You!"
+                encoded_msg = urllib.parse.quote(sms_msg)
+                
+                # Device Intent SMS Link
+                sms_intent_url = f"sms:{formatted_phone}?body={encoded_msg}"
+
+                st.markdown(
+                    f"""
+                    <a href="{sms_intent_url}" target="_blank" style="text-decoration: none;">
+                        <button style="
+                            background-color: #25D366; 
+                            color: white; 
+                            padding: 12px 20px; 
+                            font-size: 16px; 
+                            font-weight: bold; 
+                            border: none; 
+                            border-radius: 8px; 
+                            cursor: pointer; 
+                            width: 100%;
+                            box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                            📱 Send Bill SMS to Customer via Phone App ({formatted_phone})
+                        </button>
+                    </a>
+                    """, 
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info("💡 Add a Customer Phone Number during checkout to send an SMS receipt.")
 
     # ==================== 12. REPORTS & FINANCIAL ANALYTICS ====================
     elif st.session_state["current_page"] == "Reports":
@@ -611,7 +653,7 @@ else:
             if not df_sup.empty:
                 st.dataframe(df_sup[df_sup["Is_Deleted"] == False][["Supplier Name", "Phone", "Company"]], use_container_width=True)
 
-    # ==================== 16. UDARA BOOK (CREDIT LEDGER) FIXED ====================
+    # ==================== 16. UDARA BOOK (CREDIT LEDGER) ====================
     elif st.session_state["current_page"] == "Credit Book":
         st.title("📖 Udara Book - Customer Credit Ledger (ණය පොත)")
         df_credit = load_data(CREDIT_FILE)
@@ -628,7 +670,6 @@ else:
 
                 if st.form_submit_button("Save Ledger Entry"):
                     if c_name and c_due > 0:
-                        # Case-insensitive Name Matching
                         existing_match = df_credit[
                             (df_credit["Customer Name"].str.lower() == c_name.lower()) & 
                             (df_credit["Is_Deleted"] == False)
@@ -654,7 +695,6 @@ else:
 
         with col2:
             st.subheader("💵 Settle / Pay Due Balance (ණය ගෙවීම)")
-            # ණය මුදලක් (Due Balance > 0) ඇති අය පමණක් තේරීම
             pending_credits = active_credit[active_credit["Due Balance"] > 0] if not active_credit.empty else pd.DataFrame()
             
             if not pending_credits.empty:
@@ -678,7 +718,7 @@ else:
                             st.success(f"Payment Recorded! Remaining Balance: Rs. {new_bal:,.2f}")
                             st.rerun()
             else:
-                st.info("🎉 No pending customer credits to settle! (සියලු ණය ගෙවා අවසන්)")
+                st.info("🎉 No pending customer credits to settle!")
 
         st.markdown("---")
         st.subheader("📋 Active Customer Credit Records Log")
@@ -711,7 +751,7 @@ else:
             if not df_cust.empty:
                 st.dataframe(df_cust[df_cust["Is_Deleted"] == False][["Customer Name", "Phone", "Loyalty Points"]], use_container_width=True)
 
-    # ==================== 18. ITEM RETURNS SYSTEM (FIXED & FULLY WORKING) ====================
+    # ==================== 18. ITEM RETURNS SYSTEM ====================
     elif st.session_state["current_page"] == "Returns":
         st.title("🔄 Item Return & Refund Processing")
         df_sales = load_data(SALES_FILE)
@@ -746,7 +786,6 @@ else:
 
                     if st.form_submit_button("✅ Process Return & Restock Product"):
                         if ret_qty_total > 0:
-                            # 1. Update Product Stock (Restock)
                             if sel_code in df_products["Code"].astype(str).values:
                                 p_idx = df_products[df_products["Code"].astype(str) == sel_code].index[0]
                                 df_products.loc[p_idx, "Total Meter"] = float(df_products.loc[p_idx, "Total Meter"]) + ret_m
@@ -756,7 +795,6 @@ else:
                                 df_products.loc[p_idx, "Total Liter"] = float(df_products.loc[p_idx, "Total Liter"]) + ret_l
                                 save_data(df_products, PRODUCT_FILE)
 
-                            # 2. Add Entry to returns.csv
                             new_return = {
                                 "Date": datetime.now().strftime("%Y-%m-%d"),
                                 "Invoice ID": inv_search,
@@ -781,7 +819,7 @@ else:
         if not df_returns.empty:
             st.dataframe(df_returns, use_container_width=True)
 
-    # ==================== 19. RECYCLE BIN (FIXED RESTORE & DELETE) ====================
+    # ==================== 19. RECYCLE BIN ====================
     elif st.session_state["current_page"] == "Recycle Bin":
         st.title("🗑️ System Recycle Bin & Data Management")
         df_p = load_data(PRODUCT_FILE)
