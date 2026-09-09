@@ -101,21 +101,26 @@ if "cart" not in st.session_state:
 if "last_invoice" not in st.session_state:
     st.session_state["last_invoice"] = None
 
-# ==================== 6. LOGIN PAGE UI (Admin & Cashier only) ====================
+# Initialize form states for clearing
+for key in ["form_meter", "form_yard", "form_pcs", "form_kg", "form_liter"]:
+    if key not in st.session_state:
+        st.session_state[key] = 0.0
+
+# ==================== 6. LOGIN PAGE UI ====================
 if not st.session_state["logged_in"]:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; color: #1E88E5;'>SAPPHIRE COLLECTION POS</h1>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align: center; color: #555;'>Advanced Retail & Apparel Management System (වෙළඳසැල් කළමනාකරණ පද්ධතිය)</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center; color: #555;'>Advanced Retail & Apparel Management System</h4>", unsafe_allow_html=True)
     st.markdown("---")
 
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        st.subheader("🔐 User Authentication (පද්ධතියට ඇතුළු වීම)")
-        role_selected = st.selectbox("Select Account Role (ගිණුම් වර්ගය):", ["Admin (පරිපාලක)", "Cashier (කැෂියර්)"])
-        pwd_input = st.text_input("Enter Password (මුරපදය ඇතුළත් කරන්න):", type="password", key="login_pwd")
+        st.subheader("🔐 User Authentication")
+        role_selected = st.selectbox("Select Account Role:", ["Admin (පරිපාලක)", "Cashier (කැෂියර්)"])
+        pwd_input = st.text_input("Enter Password:", type="password", key="login_pwd")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🚀 Login to System (ඇතුළු වන්න)", type="primary", use_container_width=True):
+        if st.button("🚀 Login to System", type="primary", use_container_width=True):
             if "Admin" in role_selected and pwd_input == "1234":
                 st.session_state["logged_in"] = True
                 st.session_state["user_role"] = "Admin"
@@ -137,11 +142,11 @@ else:
     
     with top_col1:
         if st.session_state["current_page"] != "Main Menu":
-            if st.button("⬅️ Back to Main Menu (ප්‍රධාන මෙනුවට)"):
+            if st.button("⬅️ Back to Main Menu"):
                 st.session_state["current_page"] = "Main Menu"
                 st.rerun()
         else:
-            st.write("📍 **Dashboard Overview (ප්‍රධාන පුවරුව)**")
+            st.write("📍 **Dashboard Overview**")
 
     with top_col2:
         st.write(f"👤 Current User: **{st.session_state['user_role']}**")
@@ -158,62 +163,62 @@ else:
     # ==================== 8. MAIN MENU DASHBOARD ====================
     if st.session_state["current_page"] == "Main Menu":
         st.markdown("<h1 style='text-align: center; color: #333;'>💎 Sapphire Collection POS System</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center;'>Select a module below to proceed (අවශ්‍ය අංශය තෝරන්න)</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>Select a module below to proceed</p>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.subheader("📦 Inventory & Products (තොග සහ භාණ්ඩ)")
-            if st.button("📦 Product Management (භාණ්ඩ කළමනාකරණය)", use_container_width=True):
+            st.subheader("📦 Inventory & Products")
+            if st.button("📦 Product Management", use_container_width=True):
                 st.session_state["current_page"] = "Product"
                 st.rerun()
             
-            if st.button("📖 Udara Book - Credit Records (ණය පොත)", use_container_width=True):
+            if st.button("📖 Udara Book - Credit Records", use_container_width=True):
                 st.session_state["current_page"] = "Credit Book"
                 st.rerun()
 
-            if st.button("👥 Customer & Loyalty (පාරිභෝගිකයින්)", use_container_width=True):
+            if st.button("👥 Customer & Loyalty", use_container_width=True):
                 st.session_state["current_page"] = "Customers"
                 st.rerun()
 
-            if st.button("🏷️ Barcode Generator (බාර්කෝඩ් සෑදීම)", use_container_width=True):
+            if st.button("🏷️ Barcode Generator", use_container_width=True):
                 st.session_state["current_page"] = "Barcode"
                 st.rerun()
 
         with col2:
-            st.subheader("🧾 Sales & Billing (විකුණුම් සහ බිල්පත්)")
-            if st.button("🧾 Bill Issue & Cashier Terminal (බිල්පත් නිකුත් කිරීම)", use_container_width=True):
+            st.subheader("🧾 Sales & Billing")
+            if st.button("🧾 Bill Issue & Cashier Terminal", use_container_width=True):
                 st.session_state["current_page"] = "Bill Issue"
                 st.rerun()
 
-            if st.button("🔄 Item Return System (භාණ්ඩ ආපසු බාරගැනීම)", use_container_width=True):
+            if st.button("🔄 Item Return System", use_container_width=True):
                 st.session_state["current_page"] = "Returns"
                 st.rerun()
 
             if st.session_state["user_role"] == "Admin":
-                if st.button("💸 Shop Expense Tracker (වියදම් සටහන)", use_container_width=True):
+                if st.button("💸 Shop Expense Tracker", use_container_width=True):
                     st.session_state["current_page"] = "Expenses"
                     st.rerun()
 
         with col3:
-            st.subheader("📊 Analytics & Admin (වාර්තා සහ පරිපාලනය)")
-            if st.button("📊 Stock Levels & Reorder Alerts (තොග ප්‍රමාණයන්)", use_container_width=True):
+            st.subheader("📊 Analytics & Admin")
+            if st.button("📊 Stock Levels & Reorder Alerts", use_container_width=True):
                 st.session_state["current_page"] = "Stock"
                 st.rerun()
 
             if st.session_state["user_role"] == "Admin":
-                if st.button("📈 Sales Reports & Profit Analytics (විකුණුම් වාර්තා)", use_container_width=True):
+                if st.button("📈 Sales Reports & Profit Analytics", use_container_width=True):
                     st.session_state["current_page"] = "Reports"
                     st.rerun()
 
-                if st.button("🏭 Supplier Management (සැපයුම්කරුවන්)", use_container_width=True):
+                if st.button("🏭 Supplier Management", use_container_width=True):
                     st.session_state["current_page"] = "Suppliers"
                     st.rerun()
 
         if st.session_state["user_role"] == "Admin":
             st.markdown("<br><hr>", unsafe_allow_html=True)
-            if st.button("🗑️ Recycle Bin (මකන ලද දත්ත නැවත ලබාගැනීම / සම්පූර්ණයෙන්ම ඉවත් කිරීම)", use_container_width=True):
+            if st.button("🗑️ Recycle Bin", use_container_width=True):
                 st.session_state["current_page"] = "Recycle Bin"
                 st.rerun()
 
@@ -240,7 +245,7 @@ else:
 
     # ==================== 10. PRODUCT MANAGEMENT MODULE ====================
     elif st.session_state["current_page"] == "Product":
-        st.title("📦 Product & Inventory Management (භාණ්ඩ කළමනාකරණය)")
+        st.title("📦 Product & Inventory Management")
         df_products = load_data(PRODUCT_FILE)
         df_sup = load_data(SUPPLIER_FILE)
         
@@ -256,12 +261,12 @@ else:
                 p_name = st.text_input("📦 Product Name").strip()
                 
                 if st.session_state["user_role"] == "Admin":
-                    p_cost = st.number_input("Cost Price (ගැනුම් මිල) (Rs.)", min_value=0.0, format="%.2f")
+                    p_cost = st.number_input("Cost Price (Rs.)", min_value=0.0, format="%.2f")
                 else:
                     p_cost = 0.0
 
-                p_sell = st.number_input("Selling Price (විකුණුම් මිල) (Rs.)", min_value=0.0, format="%.2f")
-                p_sup = st.selectbox("Supplier (සැපයුම්කරු)", active_sups)
+                p_sell = st.number_input("Selling Price (Rs.)", min_value=0.0, format="%.2f")
+                p_sup = st.selectbox("Supplier", active_sups)
 
                 st.markdown("---")
                 st.write("**Stock Quantities across Measurement Units:**")
@@ -316,16 +321,24 @@ else:
         st.markdown("---")
         st.subheader("📋 Active Product Catalogue")
         if not active_products.empty:
-            st.dataframe(
-                active_products[["Code", "Product Name", "Cost Price", "Selling Price", "Total Meter", "Total Yard", "Total Quantity (Pcs)", "Total Kg", "Total Liter", "Supplier"]], 
-                use_container_width=True
-            )
+            for idx, row in active_products.iterrows():
+                cols = st.columns([0.5, 2, 1, 1, 1, 1, 1])
+                if cols[0].button("🗑️", key=f"del_prod_{idx}"):
+                    df_products.loc[idx, "Is_Deleted"] = True
+                    save_data(df_products, PRODUCT_FILE)
+                    st.rerun()
+                cols[1].write(f"**{row['Code']}** - {row['Product Name']}")
+                cols[2].write(f"Sell: {row['Selling Price']}")
+                cols[3].write(f"M: {row['Total Meter']}")
+                cols[4].write(f"Pcs: {row['Total Quantity (Pcs)']}")
+                cols[5].write(f"Kg: {row['Total Kg']}")
+                cols[6].write(f"Sup: {row['Supplier']}")
         else:
             st.info("No active products available in system.")
 
     # ==================== 11. BILL ISSUE & CASHIER TERMINAL ====================
     elif st.session_state["current_page"] == "Bill Issue":
-        st.title("🧾 Bill Issue & Cashier Terminal (බිල්පත් නිකුත් කිරීම)")
+        st.title("🧾 Bill Issue & Cashier Terminal")
         df_products = load_data(PRODUCT_FILE)
         active_products = df_products[df_products["Is_Deleted"] == False] if not df_products.empty else pd.DataFrame()
 
@@ -353,11 +366,12 @@ else:
 
                     st.write("Enter Quantities to Add:")
                     col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
-                    sell_m = col_b1.number_input("Meter:", min_value=0.0, step=0.1)
-                    sell_y = col_b2.number_input("Yard:", min_value=0.0, step=0.1)
-                    sell_q = col_b3.number_input("Pcs:", min_value=0.0, step=1.0)
-                    sell_kg = col_b4.number_input("Kg:", min_value=0.0, step=0.05)
-                    sell_l = col_b5.number_input("Liter:", min_value=0.0, step=0.05)
+                    
+                    sell_m = col_b1.number_input("Meter:", min_value=0.0, step=0.1, value=st.session_state["form_meter"], key="inp_meter")
+                    sell_y = col_b2.number_input("Yard:", min_value=0.0, step=0.1, value=st.session_state["form_yard"], key="inp_yard")
+                    sell_q = col_b3.number_input("Pcs:", min_value=0.0, step=1.0, value=st.session_state["form_pcs"], key="inp_pcs")
+                    sell_kg = col_b4.number_input("Kg:", min_value=0.0, step=0.05, value=st.session_state["form_kg"], key="inp_kg")
+                    sell_l = col_b5.number_input("Liter:", min_value=0.0, step=0.05, value=st.session_state["form_liter"], key="inp_liter")
 
                     warranty_val = st.selectbox("Warranty Period:", ["No Warranty", "6 Months", "1 Year", "2 Years", "3 Years"])
                     unit_qty = sell_m + sell_y + sell_q + sell_kg + sell_l
@@ -382,7 +396,13 @@ else:
                                 "Total Price": item_total,
                                 "Profit": item_total - (unit_qty * float(prod_row["Cost Price"]))
                             })
-                            st.success("Item added to cart!")
+                            st.session_state["form_meter"] = 0.0
+                            st.session_state["form_yard"] = 0.0
+                            st.session_state["form_pcs"] = 0.0
+                            st.session_state["form_kg"] = 0.0
+                            st.session_state["form_liter"] = 0.0
+                            
+                            st.success("Item added to cart and quantities cleared!")
                             st.rerun()
                         else:
                             st.warning("Please specify quantity before adding to cart!")
@@ -497,7 +517,10 @@ else:
             """
             st.components.v1.html(receipt_html, height=380)
 
-            # ==================== DEVICE WEB INTENT SMS BUTTON ====================
+            if st.button("🔄 නව බිල්පතක් සකසන්න (New Bill)", type="primary", use_container_width=True):
+                st.session_state["last_invoice"] = None
+                st.rerun()
+
             cust_phone_val = inv.get("phone", "").strip()
             if cust_phone_val:
                 if cust_phone_val.startswith("0"):
@@ -536,7 +559,7 @@ else:
 
     # ==================== 12. REPORTS & FINANCIAL ANALYTICS ====================
     elif st.session_state["current_page"] == "Reports":
-        st.title("📈 Sales Reports & Business Analytics (විකුණුම් වාර්තා)")
+        st.title("📈 Sales Reports & Business Analytics")
 
         df_sales = load_data(SALES_FILE)
         df_exp = load_data(EXPENSES_FILE)
@@ -551,7 +574,7 @@ else:
             m1, m2, m3, m4 = st.columns(4)
             total_rev = active_sales['Total Price'].sum()
             total_prof = active_sales['Profit'].sum()
-            total_exp = df_exp['Amount'].sum() if not df_exp.empty else 0.0
+            total_exp = df_exp[df_exp["Is_Deleted"] == False]['Amount'].sum() if not df_exp.empty else 0.0
             net_profit = total_prof - total_exp
 
             m1.metric("💰 Gross Revenue", f"Rs. {total_rev:,.2f}")
@@ -561,10 +584,18 @@ else:
 
             st.markdown("---")
             st.subheader("📜 Detailed Sales Transaction History")
-            st.dataframe(
-                active_sales[["Invoice ID", "Date", "Time", "Product Name", "Total Price", "Profit", "Payment Method", "Customer"]],
-                use_container_width=True
-            )
+            for idx, row in active_sales.iterrows():
+                cols = st.columns([0.5, 1.5, 1, 1, 1.5, 1, 1])
+                if cols[0].button("🗑️", key=f"del_sale_{idx}"):
+                    df_sales.loc[idx, "Is_Deleted"] = True
+                    save_data(df_sales, SALES_FILE)
+                    st.rerun()
+                cols[1].write(f"**{row['Invoice ID']}**")
+                cols[2].write(row['Date'])
+                cols[3].write(row['Product Name'])
+                cols[4].write(f"Rs. {row['Total Price']:,.2f}")
+                cols[5].write(row['Payment Method'])
+                cols[6].write(row['Customer'])
         else:
             st.info("No sales records available to generate analytics.")
 
@@ -582,24 +613,38 @@ else:
                 (active_p["Total Liter"] <= active_p["Min Threshold"])
             ]
             if not low_stock.empty:
-                st.error("⚠️ Low Stock Alert (ප්‍රමාණය අඩු වී ඇති භාණ්ඩ):")
-                st.dataframe(
-                    low_stock[["Code", "Product Name", "Total Meter", "Total Quantity (Pcs)", "Total Kg", "Total Liter", "Min Threshold", "Supplier"]], 
-                    use_container_width=True
-                )
+                st.error("⚠️ Low Stock Alert:")
+                for idx, row in low_stock.iterrows():
+                    cols = st.columns([0.5, 1.5, 2, 1, 1])
+                    if cols[0].button("🗑️", key=f"del_low_{idx}"):
+                        df_p.loc[df_p["Code"].astype(str) == str(row['Code']), "Is_Deleted"] = True
+                        save_data(df_p, PRODUCT_FILE)
+                        st.rerun()
+                    cols[1].write(row['Code'])
+                    cols[2].write(row['Product Name'])
+                    cols[3].write(f"Pcs: {row['Total Quantity (Pcs)']}")
+                    cols[4].write(row['Supplier'])
 
             st.markdown("---")
             st.subheader("📦 Complete Inventory Stock Table")
-            st.dataframe(
-                active_p[["Code", "Product Name", "Total Meter", "Total Yard", "Total Quantity (Pcs)", "Total Kg", "Total Liter", "Min Threshold", "Supplier"]], 
-                use_container_width=True
-            )
+            for idx, row in active_p.iterrows():
+                cols = st.columns([0.5, 1.5, 2, 1, 1, 1, 1])
+                if cols[0].button("🗑️", key=f"del_stock_{idx}"):
+                    df_p.loc[idx, "Is_Deleted"] = True
+                    save_data(df_p, PRODUCT_FILE)
+                    st.rerun()
+                cols[1].write(row['Code'])
+                cols[2].write(row['Product Name'])
+                cols[3].write(f"M: {row['Total Meter']}")
+                cols[4].write(f"Pcs: {row['Total Quantity (Pcs)']}")
+                cols[5].write(f"Kg: {row['Total Kg']}")
+                cols[6].write(row['Supplier'])
         else:
             st.info("No stock data available.")
 
     # ==================== 14. EXPENSE TRACKER ====================
     elif st.session_state["current_page"] == "Expenses":
-        st.title("💸 Shop Expense Tracker (වියදම් සටහන)")
+        st.title("💸 Shop Expense Tracker")
         df_exp = load_data(EXPENSES_FILE)
 
         col1, col2 = st.columns([1, 1])
@@ -607,8 +652,8 @@ else:
         with col1:
             st.subheader("➕ Record New Expense")
             with st.form("add_exp_form", clear_on_submit=True):
-                exp_desc = st.text_input("Expense Description (විස්තරය)")
-                exp_amt = st.number_input("Amount (වටිනාකම Rs.)", min_value=0.0, format="%.2f")
+                exp_desc = st.text_input("Expense Description")
+                exp_amt = st.number_input("Amount (Rs.)", min_value=0.0, format="%.2f")
 
                 if st.form_submit_button("Save Expense Entry"):
                     if exp_desc and exp_amt > 0:
@@ -620,8 +665,19 @@ else:
 
         with col2:
             st.subheader("📜 Expense Log")
-            if not df_exp.empty:
-                st.dataframe(df_exp[df_exp["Is_Deleted"] == False][["Date", "Description", "Amount"]], use_container_width=True)
+            active_exp = df_exp[df_exp["Is_Deleted"] == False] if not df_exp.empty else pd.DataFrame()
+            if not active_exp.empty:
+                for idx, row in active_exp.iterrows():
+                    cols = st.columns([0.5, 1.5, 2, 1])
+                    if cols[0].button("🗑️", key=f"del_exp_{idx}"):
+                        df_exp.loc[idx, "Is_Deleted"] = True
+                        save_data(df_exp, EXPENSES_FILE)
+                        st.rerun()
+                    cols[1].write(row['Date'])
+                    cols[2].write(row['Description'])
+                    cols[3].write(f"Rs. {row['Amount']:,.2f}")
+            else:
+                st.info("No expense records found.")
 
     # ==================== 15. SUPPLIER MANAGEMENT ====================
     elif st.session_state["current_page"] == "Suppliers":
@@ -647,12 +703,23 @@ else:
 
         with col2:
             st.subheader("📋 Registered Suppliers Directory")
-            if not df_sup.empty:
-                st.dataframe(df_sup[df_sup["Is_Deleted"] == False][["Supplier Name", "Phone", "Company"]], use_container_width=True)
+            active_sup = df_sup[df_sup["Is_Deleted"] == False] if not df_sup.empty else pd.DataFrame()
+            if not active_sup.empty:
+                for idx, row in active_sup.iterrows():
+                    cols = st.columns([0.5, 2, 1.5, 1.5])
+                    if cols[0].button("🗑️", key=f"del_sup_{idx}"):
+                        df_sup.loc[idx, "Is_Deleted"] = True
+                        save_data(df_sup, SUPPLIER_FILE)
+                        st.rerun()
+                    cols[1].write(row['Supplier Name'])
+                    cols[2].write(row['Phone'])
+                    cols[3].write(row['Company'])
+            else:
+                st.info("No supplier records found.")
 
     # ==================== 16. UDARA BOOK (CREDIT LEDGER) ====================
     elif st.session_state["current_page"] == "Credit Book":
-        st.title("📖 Udara Book - Customer Credit Ledger (ණය පොත)")
+        st.title("📖 Udara Book - Customer Credit Ledger")
         df_credit = load_data(CREDIT_FILE)
         active_credit = df_credit[df_credit["Is_Deleted"] == False] if not df_credit.empty else pd.DataFrame()
 
@@ -661,9 +728,9 @@ else:
         with col1:
             st.subheader("➕ Record New Credit / Add Due")
             with st.form("add_credit_form", clear_on_submit=True):
-                c_name = st.text_input("Customer Name (පාරිභෝගික නම)").strip()
-                c_phone = st.text_input("Phone Number (දුරකථන අංකය)").strip()
-                c_due = st.number_input("Credit Amount to Add (ණය මුදල Rs.)", min_value=0.0, format="%.2f")
+                c_name = st.text_input("Customer Name").strip()
+                c_phone = st.text_input("Phone Number").strip()
+                c_due = st.number_input("Credit Amount to Add (Rs.)", min_value=0.0, format="%.2f")
 
                 if st.form_submit_button("Save Ledger Entry"):
                     if c_name and c_due > 0:
@@ -691,7 +758,7 @@ else:
                         st.rerun()
 
         with col2:
-            st.subheader("💵 Settle / Pay Due Balance (ණය ගෙවීම)")
+            st.subheader("💵 Settle / Pay Due Balance")
             pending_credits = active_credit[active_credit["Due Balance"] > 0] if not active_credit.empty else pd.DataFrame()
             
             if not pending_credits.empty:
@@ -702,9 +769,9 @@ else:
                     curr_due = float(pending_credits[pending_credits["Customer Name"] == sel_cust]["Due Balance"].iloc[0])
                     st.info(f"Current Balance Due for **{sel_cust}**: **Rs. {curr_due:,.2f}**")
                     
-                    pay_amt = st.number_input("Paid Amount by Customer (ගෙවන ලද මුදල Rs.)", min_value=0.0, max_value=curr_due, format="%.2f")
+                    pay_amt = st.number_input("Paid Amount by Customer (Rs.)", min_value=0.0, max_value=curr_due, format="%.2f")
 
-                    if st.form_submit_button("✅ Deduct Paid Amount (ණය මුදලින් අඩු කරන්න)"):
+                    if st.form_submit_button("✅ Deduct Paid Amount"):
                         if pay_amt > 0:
                             idx = df_credit[(df_credit["Customer Name"] == sel_cust) & (df_credit["Is_Deleted"] == False)].index[0]
                             new_bal = curr_due - pay_amt
@@ -720,7 +787,18 @@ else:
         st.markdown("---")
         st.subheader("📋 Active Customer Credit Records Log")
         if not active_credit.empty:
-            st.dataframe(active_credit[["Customer Name", "Phone", "Due Balance", "Last Date"]], use_container_width=True)
+            for idx, row in active_credit.iterrows():
+                cols = st.columns([0.5, 2, 1.5, 1.5, 1])
+                if cols[0].button("🗑️", key=f"del_cred_{idx}"):
+                    df_credit.loc[idx, "Is_Deleted"] = True
+                    save_data(df_credit, CREDIT_FILE)
+                    st.rerun()
+                cols[1].write(row['Customer Name'])
+                cols[2].write(row['Phone'])
+                cols[3].write(f"Due: Rs. {row['Due Balance']:,.2f}")
+                cols[4].write(row['Last Date'])
+        else:
+            st.info("No credit records found.")
 
     # ==================== 17. CUSTOMER & LOYALTY ====================
     elif st.session_state["current_page"] == "Customers":
@@ -745,8 +823,19 @@ else:
 
         with col2:
             st.subheader("📋 Registered Customer Directory")
-            if not df_cust.empty:
-                st.dataframe(df_cust[df_cust["Is_Deleted"] == False][["Customer Name", "Phone", "Loyalty Points"]], use_container_width=True)
+            active_cust = df_cust[df_cust["Is_Deleted"] == False] if not df_cust.empty else pd.DataFrame()
+            if not active_cust.empty:
+                for idx, row in active_cust.iterrows():
+                    cols = st.columns([0.5, 2, 1.5, 1])
+                    if cols[0].button("🗑️", key=f"del_cust_{idx}"):
+                        df_cust.loc[idx, "Is_Deleted"] = True
+                        save_data(df_cust, CUSTOMER_FILE)
+                        st.rerun()
+                    cols[1].write(row['Customer Name'])
+                    cols[2].write(row['Phone'])
+                    cols[3].write(f"Pts: {row['Loyalty Points']}")
+            else:
+                st.info("No customer profiles found.")
 
     # ==================== 18. ITEM RETURNS SYSTEM ====================
     elif st.session_state["current_page"] == "Returns":
@@ -814,7 +903,18 @@ else:
         st.markdown("---")
         st.subheader("📜 Return History Log")
         if not df_returns.empty:
-            st.dataframe(df_returns, use_container_width=True)
+            for idx, row in df_returns.iterrows():
+                cols = st.columns([0.5, 1.5, 1.5, 2, 1])
+                if cols[0].button("🗑️", key=f"del_ret_{idx}"):
+                    df_returns = df_returns.drop(idx).reset_index(drop=True)
+                    save_data(df_returns, RETURNS_FILE)
+                    st.rerun()
+                cols[1].write(row['Date'])
+                cols[2].write(row['Invoice ID'])
+                cols[3].write(row['Product Name'])
+                cols[4].write(f"Rs. {row['Refund Amount']:,.2f}")
+        else:
+            st.info("No return history found.")
 
     # ==================== 19. RECYCLE BIN ====================
     elif st.session_state["current_page"] == "Recycle Bin":
@@ -824,25 +924,18 @@ else:
 
         if not deleted_p.empty:
             st.subheader("Deleted Product Records:")
-            st.dataframe(deleted_p[["Code", "Product Name", "Selling Price", "Supplier"]], use_container_width=True)
-            
-            res_code = st.selectbox("Select Product:", deleted_p["Code"].astype(str) + " - " + deleted_p["Product Name"])
-            code_val = res_code.split(" - ")[0]
-
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                if st.button("🔄 Restore Selected Product", use_container_width=True):
+            for idx, row in deleted_p.iterrows():
+                cols = st.columns([1, 1.5, 2, 1.5])
+                code_val = str(row['Code'])
+                if cols[0].button("🔄 Restore", key=f"res_{idx}"):
                     df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
                     save_data(df_p, PRODUCT_FILE)
-                    st.success("Product successfully restored to active catalogue!")
                     st.rerun()
-
-            with col_btn2:
-                if st.button("❌ Permanently Delete Product", type="primary", use_container_width=True):
+                if cols[1].button("❌ Delete Perm", key=f"perm_{idx}"):
                     df_p = df_p[df_p["Code"].astype(str) != code_val]
                     save_data(df_p, PRODUCT_FILE)
-                    st.warning("Product permanently deleted from database!")
                     st.rerun()
+                cols[2].write(f"**{code_val}** - {row['Product Name']}")
+                cols[3].write(row['Supplier'])
         else:
             st.info("Recycle bin is completely empty.")
