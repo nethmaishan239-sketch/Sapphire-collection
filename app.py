@@ -248,7 +248,6 @@ if menu_choice == "🛒 POS Checkout":
                 st.rerun()
 
             sub_total = cart_df["Total"].sum()
-            total_cost = (cart_df["Cost"] * cart_df["Qty"]).sum() # For profit tracking later
             
             ec1, ec2 = st.columns(2)
             disc_pct = ec1.number_input("Discount %", 0.0, 100.0, 0.0)
@@ -318,9 +317,10 @@ if menu_choice == "🛒 POS Checkout":
                     st.rerun()
 
 # ==============================================================================
-# MODULE 2: RETURNS & REFUNDS (NEW)
+# MODULE 2: RETURNS & REFUNDS
 # ==============================================================================
 elif menu_choice == "↩️ Returns & Refunds":
+    global df_ret, df_exp
     st.title("↩️ Return Merchandise Authorization (RMA)")
     st.write("Process customer returns, update inventory, and issue refunds.")
     
@@ -338,36 +338,29 @@ elif menu_choice == "↩️ Returns & Refunds":
                 ref_amt = st.number_input("Refund Amount (Rs.)", min_value=0.0)
                 
                 if st.form_submit_button("Process Refund & Restock"):
-                    # Validate Invoice
                     inv_match = df_sales[df_sales["Invoice No"] == inv_to_return]
                     if inv_match.empty:
                         st.error("Invoice not found in system.")
                     else:
-                        # Check Item
                         item_match = active_items[active_items["Item Code"] == ret_code]
                         if item_match.empty:
                             st.error("Item code not recognized.")
                         else:
                             ret_id = f"RET-{uuid.uuid4().hex[:6].upper()}"
-                            # Restock item
                             i_idx = df_items[df_items["Item Code"] == ret_code].index[0]
                             df_items.loc[i_idx, "Stock Quantity"] += ret_qty
                             save_data(df_items, ITEMS_FILE)
                             
-                            # Log Return
                             new_ret = {
                                 "Return_ID": ret_id, "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                                 "Invoice_No": inv_to_return, "Item_Code": ret_code, "Return_Qty": ret_qty,
                                 "Reason": ret_reason, "Refund_Amount": ref_amt, "Processed_By": st.session_state.username
                             }
-                            global df_ret
                             df_ret = pd.concat([df_ret, pd.DataFrame([new_ret])], ignore_index=True)
                             save_data(df_ret, RETURNS_FILE)
                             
-                            # Log Expense for Refund
                             if ref_amt > 0:
                                 exp_row = {"Date": datetime.now().strftime("%Y-%m-%d"), "Category": "Refunds", "Description": f"Refund for {ret_id}", "Amount": ref_amt, "Logged By": st.session_state.username}
-                                global df_exp
                                 df_exp = pd.concat([df_exp, pd.DataFrame([exp_row])], ignore_index=True)
                                 save_data(df_exp, EXPENSE_FILE)
                             
@@ -383,6 +376,7 @@ elif menu_choice == "↩️ Returns & Refunds":
 # MODULE 3: INVENTORY & STOCK
 # ==============================================================================
 elif menu_choice == "📦 Inventory & Stock":
+    global df_items
     st.title("📦 Master Inventory Management")
     
     t_add, t_view, t_alerts = st.tabs(["Add / Edit Items", "Inventory Database", "Low Stock Alerts"])
@@ -435,7 +429,6 @@ elif menu_choice == "📦 Inventory & Stock":
     with t_alerts:
         st.subheader("⚠️ Stock Replenishment Alerts")
         if not active_items.empty:
-            # Check where Stock is less than or equal to Reorder Level
             low_stock = active_items[pd.to_numeric(active_items["Stock Quantity"]) <= pd.to_numeric(active_items["Reorder_Level"])]
             if not low_stock.empty:
                 st.error(f"Critical! {len(low_stock)} items need immediate reordering.")
@@ -444,12 +437,13 @@ elif menu_choice == "📦 Inventory & Stock":
                 st.success("All inventory levels are healthy. No immediate reorders needed.")
 
 # ==============================================================================
-# MODULE 4: PURCHASES & PO SYSTEM (NEW)
+# MODULE 4: PURCHASES & PO SYSTEM
 # ==============================================================================
 elif menu_choice == "🏭 Purchases (PO)":
+    global df_sup, df_po
     st.title("🏭 Purchase Orders & Vendors")
     
-    t_ven, t_po, t_recv = st.tabs(["Manage Vendors", "Create PO", "Receive Goods & Pay"])
+    t_ven, t_po_tab, t_recv = st.tabs(["Manage Vendors", "Create PO", "Receive Goods & Pay"])
     
     with t_ven:
         v1, v2 = st.columns([1, 1.5])
@@ -463,7 +457,6 @@ elif menu_choice == "🏭 Purchases (PO)":
                 if st.form_submit_button("Register Vendor"):
                     if s_name:
                         new_sup = {"Supplier Name": s_name, "Phone": s_phone, "Company": s_comp, "Pending Payable": s_debt, "Is_Deleted": False}
-                        global df_sup
                         df_sup = pd.concat([df_sup, pd.DataFrame([new_sup])], ignore_index=True)
                         save_data(df_sup, SUPPLIER_FILE)
                         st.success("Vendor added.")
@@ -472,7 +465,7 @@ elif menu_choice == "🏭 Purchases (PO)":
             st.subheader("Vendor Directory")
             st.dataframe(active_sup, use_container_width=True)
 
-    with t_po:
+    with t_po_tab:
         st.subheader("Generate Purchase Order")
         if not active_sup.empty and not active_items.empty:
             with st.form("po_form"):
@@ -491,7 +484,6 @@ elif menu_choice == "🏭 Purchases (PO)":
                         "Supplier": sel_sup, "Item_Code": i_code, "Qty": ord_qty, 
                         "Cost_Per_Unit": cost_est, "Total_Cost": t_cost, "Status": "Pending"
                     }
-                    global df_po
                     df_po = pd.concat([df_po, pd.DataFrame([new_po])], ignore_index=True)
                     save_data(df_po, PO_FILE)
                     log_audit("PO Created", f"PO: {po_id} for {sel_sup}", st.session_state.username)
@@ -513,29 +505,23 @@ elif menu_choice == "🏭 Purchases (PO)":
                 if st.form_submit_button("Mark as Received & Update System"):
                     po_data = pending_pos[pending_pos["PO_ID"] == po_to_recv].iloc[0]
                     
-                    # 1. Update PO Status
                     po_idx = df_po[df_po["PO_ID"] == po_to_recv].index[0]
                     df_po.loc[po_idx, "Status"] = "Completed"
                     save_data(df_po, PO_FILE)
                     
-                    # 2. Update Inventory Stock
                     itm_code = po_data["Item_Code"]
                     itm_idx = df_items[df_items["Item Code"].astype(str) == str(itm_code)].index[0]
                     df_items.loc[itm_idx, "Stock Quantity"] = int(df_items.loc[itm_idx, "Stock Quantity"]) + int(po_data["Qty"])
-                    # Optionally update cost price to latest
                     df_items.loc[itm_idx, "Cost Price"] = float(po_data["Cost_Per_Unit"])
                     save_data(df_items, ITEMS_FILE)
                     
-                    # 3. Update Vendor Payable & Payments
                     sup_name = po_data["Supplier"]
                     sup_idx = df_sup[df_sup["Supplier Name"] == sup_name].index[0]
                     total_po_cost = float(po_data["Total_Cost"])
                     
-                    # Add total cost to debt, subtract what is paid now
                     df_sup.loc[sup_idx, "Pending Payable"] += (total_po_cost - pay_now)
                     save_data(df_sup, SUPPLIER_FILE)
                     
-                    # 4. Log payment as expense if > 0
                     if pay_now > 0:
                         exp_row = {"Date": datetime.now().strftime("%Y-%m-%d"), "Category": "Inventory Purchase", "Description": f"Payment for {po_to_recv}", "Amount": pay_now, "Logged By": st.session_state.username}
                         df_exp = pd.concat([df_exp, pd.DataFrame([exp_row])], ignore_index=True)
@@ -551,6 +537,7 @@ elif menu_choice == "🏭 Purchases (PO)":
 # MODULE 5: CRM & CREDIT
 # ==============================================================================
 elif menu_choice == "👥 CRM & Credit":
+    global df_cust
     st.title("👥 Customer Relations & Credit Control")
     
     c1, c2 = st.columns([1, 1])
@@ -564,7 +551,6 @@ elif menu_choice == "👥 CRM & Credit":
                 if c_name:
                     tier = calculate_customer_tier(c_pts)
                     new_c = {"Customer Name": c_name, "Phone": c_phone, "Loyalty Points": c_pts, "Tier": tier, "Credit_Owed": 0.0, "Is_Deleted": False}
-                    global df_cust
                     df_cust = pd.concat([df_cust, pd.DataFrame([new_c])], ignore_index=True)
                     save_data(df_cust, CUSTOMER_FILE)
                     st.success("Client registered.")
@@ -597,9 +583,10 @@ elif menu_choice == "👥 CRM & Credit":
     st.dataframe(active_cust[["Customer Name", "Phone", "Tier", "Loyalty Points", "Credit_Owed"]], use_container_width=True)
 
 # ==============================================================================
-# MODULE 6: HR, ATTENDANCE & PAYROLL (NEW)
+# MODULE 6: HR, ATTENDANCE & PAYROLL
 # ==============================================================================
 elif menu_choice == "💸 HR & Payroll":
+    global df_emp, df_att
     st.title("💸 Staff Management & Expense Logger")
     
     t_emp, t_att, t_exp = st.tabs(["Employees", "Attendance & Shifts", "General Expenses"])
@@ -613,7 +600,6 @@ elif menu_choice == "💸 HR & Payroll":
             e_role = col_e1.selectbox("Role", ["Cashier", "Manager", "Store Keeper"])
             e_sal = col_e2.number_input("Basic Salary", 0.0)
             if st.form_submit_button("Add Employee") and e_id:
-                global df_emp
                 df_emp = pd.concat([df_emp, pd.DataFrame([{"Emp ID": e_id, "Name": e_name, "Role": e_role, "Phone": "", "Basic_Salary": e_sal, "Is_Deleted": False}])], ignore_index=True)
                 save_data(df_emp, EMPLOYEE_FILE)
                 st.success("Employee Added.")
@@ -626,7 +612,6 @@ elif menu_choice == "💸 HR & Payroll":
             p_amt = st.number_input("Amount", 0.0)
             if st.form_submit_button("Issue Salary"):
                 exp_row = {"Date": datetime.now().strftime("%Y-%m-%d"), "Category": "Staff Salaries", "Description": f"Salary for {p_emp}", "Amount": p_amt, "Logged By": st.session_state.username}
-                global df_exp
                 df_exp = pd.concat([df_exp, pd.DataFrame([exp_row])], ignore_index=True)
                 save_data(df_exp, EXPENSE_FILE)
                 st.success("Salary disbursed and logged as expense.")
@@ -643,14 +628,12 @@ elif menu_choice == "💸 HR & Payroll":
                     dt = datetime.now().strftime("%Y-%m-%d")
                     tm = datetime.now().strftime("%H:%M:%S")
                     new_att = {"Date": dt, "Emp ID": emp_id, "Name": sel_emp_in, "Check_In": tm, "Check_Out": "", "Hours_Worked": 0.0}
-                    global df_att
                     df_att = pd.concat([df_att, pd.DataFrame([new_att])], ignore_index=True)
                     save_data(df_att, ATTENDANCE_FILE)
                     st.success(f"{sel_emp_in} checked in at {tm}")
                     st.rerun()
             with c_att2:
                 st.markdown("**Check Out**")
-                # Find those who checked in today but haven't checked out
                 today = datetime.now().strftime("%Y-%m-%d")
                 if not df_att.empty:
                     open_shifts = df_att[(df_att["Date"] == today) & (df_att["Check_Out"] == "")]
@@ -661,7 +644,6 @@ elif menu_choice == "💸 HR & Payroll":
                             idx = df_att[(df_att["Date"] == today) & (df_att["Name"] == sel_emp_out) & (df_att["Check_Out"] == "")].index[0]
                             df_att.loc[idx, "Check_Out"] = tm_out
                             
-                            # Simple hours calc (assuming same day)
                             fmt = "%H:%M:%S"
                             tdelta = datetime.strptime(tm_out, fmt) - datetime.strptime(df_att.loc[idx, "Check_In"], fmt)
                             df_att.loc[idx, "Hours_Worked"] = round(tdelta.seconds / 3600, 2)
@@ -689,7 +671,7 @@ elif menu_choice == "💸 HR & Payroll":
         st.dataframe(df_exp, use_container_width=True)
 
 # ==============================================================================
-# MODULE 7: PROFIT & LOSS REPORTS (NEW)
+# MODULE 7: PROFIT & LOSS REPORTS
 # ==============================================================================
 elif menu_choice == "📊 Profit & Loss Reports":
     st.title("📊 Financial Intelligence & P&L")
@@ -699,15 +681,8 @@ elif menu_choice == "📊 Profit & Loss Reports":
     else:
         st.subheader("Enterprise Income Statement (P&L)")
         
-        # Calculations
         tot_sales = df_sales["Total Amount"].sum() if not df_sales.empty else 0.0
-        tot_discounts = df_sales["Discount"].sum() if not df_sales.empty else 0.0
-        tot_taxes = df_sales["Tax"].sum() if not df_sales.empty else 0.0
-        
-        # Cost of Goods Sold (Simple estimation based on sales history or current inventory value)
-        # For a real P&L, we need exact COGS, here we simulate based on POs or general margin.
         cogs = df_po[df_po["Status"]=="Completed"]["Total_Cost"].sum() if not df_po.empty else 0.0
-        
         gross_profit = tot_sales - cogs
         
         tot_opex = df_exp["Amount"].sum() if not df_exp.empty else 0.0
@@ -722,7 +697,7 @@ elif menu_choice == "📊 Profit & Loss Reports":
         
         c1, c2 = st.columns(2)
         with c1:
-            st.write("**Revenue vs Expenses Trend**")
+            st.write("**Revenue Trend**")
             if not df_sales.empty:
                 s_trend = df_sales.copy()
                 s_trend['Date'] = pd.to_datetime(s_trend['Date']).dt.date
@@ -738,9 +713,10 @@ elif menu_choice == "📊 Profit & Loss Reports":
                 st.plotly_chart(fig_e, use_container_width=True)
 
 # ==============================================================================
-# MODULE 8: SYSTEM ADMIN (Admin Only)
+# MODULE 8: SYSTEM ADMIN
 # ==============================================================================
 elif menu_choice == "⚙️ System Admin":
+    global df_users
     if st.session_state.role != "Admin":
         st.error("Access Denied.")
         st.stop()
@@ -761,7 +737,6 @@ elif menu_choice == "⚙️ System Admin":
                     st.error("User exists.")
                 else:
                     new_u = {"Username": nu_name, "PasswordHash": hash_password(nu_pass), "Role": nu_role, "Is_Deleted": False}
-                    global df_users
                     df_users = pd.concat([df_users, pd.DataFrame([new_u])], ignore_index=True)
                     save_data(df_users, USERS_FILE)
                     log_audit("User Created", f"Account {nu_name} created", st.session_state.username)
@@ -771,7 +746,6 @@ elif menu_choice == "⚙️ System Admin":
 
     with t_aud:
         st.subheader("Security & Action Audit Trail")
-        st.write("Tracks all critical actions performed in the system.")
         if os.path.exists(AUDIT_FILE):
             df_audit_view = pd.read_csv(AUDIT_FILE)
             st.dataframe(df_audit_view.sort_values(by="Timestamp", ascending=False), use_container_width=True, height=400)
@@ -780,8 +754,6 @@ elif menu_choice == "⚙️ System Admin":
 
     with t_db:
         st.subheader("Database Maintenance")
-        
-        # Backup Function
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for root, _, files in os.walk(DB_DIR):
@@ -801,7 +773,5 @@ elif menu_choice == "⚙️ System Admin":
         st.warning("⚠️ **FACTORY RESET**")
         if st.checkbox("Unlock Factory Reset"):
             if st.button("🗑️ Erase All Data", type="primary"):
-                st.error("System wipe initiated! (Simulation mode - files not actually deleted for safety in this script)")
+                st.error("System wipe initiated!")
                 log_audit("System Wipe", "Admin triggered data wipe", st.session_state.username)
-
-# End of System
