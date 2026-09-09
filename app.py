@@ -101,7 +101,14 @@ if "cart" not in st.session_state:
 if "last_invoice" not in st.session_state:
     st.session_state["last_invoice"] = None
 
+if "last_credit_receipt" not in st.session_state:
+    st.session_state["last_credit_receipt"] = None
+
 for key in ["form_meter", "form_yard", "form_pcs", "form_kg", "form_liter"]:
+    if key not in st.session_state:
+        st.session_state[key] = 0.0
+
+for key in ["inp_meter", "inp_yard", "inp_pcs", "inp_kg", "inp_liter"]:
     if key not in st.session_state:
         st.session_state[key] = 0.0
 
@@ -383,11 +390,11 @@ else:
                     st.write("Enter Quantities to Add (ප්‍රමාණයන් ඇතුළත් කරන්න):")
                     col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
                     
-                    sell_m = col_b1.number_input("Meter:", min_value=0.0, step=0.1, value=st.session_state["form_meter"], key="inp_meter")
-                    sell_y = col_b2.number_input("Yard:", min_value=0.0, step=0.1, value=st.session_state["form_yard"], key="inp_yard")
-                    sell_q = col_b3.number_input("Pcs:", min_value=0.0, step=1.0, value=st.session_state["form_pcs"], key="inp_pcs")
-                    sell_kg = col_b4.number_input("Kg:", min_value=0.0, step=0.05, value=st.session_state["form_kg"], key="inp_kg")
-                    sell_l = col_b5.number_input("Liter:", min_value=0.0, step=0.05, value=st.session_state["form_liter"], key="inp_liter")
+                    sell_m = col_b1.number_input("Meter:", min_value=0.0, step=0.1, key="inp_meter")
+                    sell_y = col_b2.number_input("Yard:", min_value=0.0, step=0.1, key="inp_yard")
+                    sell_q = col_b3.number_input("Pcs:", min_value=0.0, step=1.0, key="inp_pcs")
+                    sell_kg = col_b4.number_input("Kg:", min_value=0.0, step=0.05, key="inp_kg")
+                    sell_l = col_b5.number_input("Liter:", min_value=0.0, step=0.05, key="inp_liter")
 
                     warranty_val = st.selectbox("Warranty Period (වගකීම් කාලය):", ["No Warranty", "6 Months", "1 Year", "2 Years", "3 Years"])
                     unit_qty = sell_m + sell_y + sell_q + sell_kg + sell_l
@@ -412,6 +419,13 @@ else:
                                 "Total Price": item_total,
                                 "Profit": item_total - (unit_qty * float(prod_row["Cost Price"]))
                             })
+                            
+                            # Reset input values in session state so meter, yard, pcs, kg, liter clear to 0 automatically
+                            st.session_state["inp_meter"] = 0.0
+                            st.session_state["inp_yard"] = 0.0
+                            st.session_state["inp_pcs"] = 0.0
+                            st.session_state["inp_kg"] = 0.0
+                            st.session_state["inp_liter"] = 0.0
                             st.session_state["form_meter"] = 0.0
                             st.session_state["form_yard"] = 0.0
                             st.session_state["form_pcs"] = 0.0
@@ -789,15 +803,56 @@ else:
                     if st.form_submit_button("✅ Deduct Paid Amount (ණය අඩු කරන්න)"):
                         if pay_amt > 0:
                             idx = df_credit[(df_credit["Customer Name"] == sel_cust) & (df_credit["Is_Deleted"] == False)].index[0]
+                            cust_phone_rec = str(df_credit.loc[idx, "Phone"]) if "Phone" in df_credit.columns else ""
                             new_bal = curr_due - pay_amt
                             df_credit.loc[idx, "Due Balance"] = new_bal
                             df_credit.loc[idx, "Last Date"] = datetime.now().strftime("%Y-%m-%d")
                             
                             save_data(df_credit, CREDIT_FILE)
+
+                            st.session_state["last_credit_receipt"] = {
+                                "receipt_id": datetime.now().strftime("CR%Y%m%d%H%M%S"),
+                                "customer": sel_cust,
+                                "phone": cust_phone_rec,
+                                "previous_due": curr_due,
+                                "paid_amount": pay_amt,
+                                "remaining_due": new_bal,
+                                "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+
                             st.success(f"Payment Recorded! Remaining Balance: Rs. {new_bal:,.2f}")
                             st.rerun()
             else:
                 st.info("🎉 No pending customer credits to settle! (පියවිය යුතු ණය නොමැත)")
+
+        if st.session_state.get("last_credit_receipt"):
+            st.markdown("---")
+            st.subheader("🖨️ Printable Payment Receipt (ණය ගෙවීමේ ලදුපත)")
+            c_rec = st.session_state["last_credit_receipt"]
+            
+            c_receipt_html = f"""
+            <div style="width: 300px; padding: 15px; border: 1px dashed #333; font-family: monospace; background: #fff; color: #000;">
+                <h3 style="text-align: center; margin: 0;">SAPPHIRE COLLECTION</h3>
+                <p style="text-align: center; margin: 0;">Credit Payment Receipt</p>
+                <p style="text-align: center; margin: 0;">Tel: 077-1234567</p>
+                <hr style="border-top: 1px dashed #000;">
+                <p><b>Receipt No:</b> {c_rec['receipt_id']}<br>
+                <b>Date:</b> {c_rec['date']}<br>
+                <b>Customer:</b> {c_rec['customer']}</p>
+                <hr style="border-top: 1px dashed #000;">
+                <p>Previous Balance: <span style="float:right;">Rs.{c_rec['previous_due']:,.2f}</span></p>
+                <p><b>Paid Amount: <span style="float:right;">Rs.{c_rec['paid_amount']:,.2f}</span></b></p>
+                <hr style="border-top: 1px dashed #000;">
+                <h4><b>Remaining Due: <span style="float:right;">Rs.{c_rec['remaining_due']:,.2f}</span></b></h4>
+                <hr style="border-top: 1px dashed #000;">
+                <p style="text-align: center;">Thank You!</p>
+            </div>
+            """
+            st.components.v1.html(c_receipt_html, height=350)
+
+            if st.button("❌ Close Receipt (ලදුපත වසන්න)", type="secondary"):
+                st.session_state["last_credit_receipt"] = None
+                st.rerun()
 
         st.markdown("---")
         st.subheader("📋 Active Customer Credit Records Log (ණය ලැයිස්තු වගුව)")
@@ -933,30 +988,202 @@ else:
         else:
             st.info("No return history found. (වාර්තා නොමැත)")
 
-    # ==================== 19. RECYCLE BIN ====================
+    # ==================== 19. RECYCLE BIN & DATA MANAGEMENT ====================
     elif st.session_state["current_page"] == "Recycle Bin":
         st.title("🗑️ System Recycle Bin & Data Management (ඉවත දැමූ දත්ත බඳුන)")
-        df_p = load_data(PRODUCT_FILE)
-        deleted_p = df_p[df_p["Is_Deleted"] == True] if not df_p.empty else pd.DataFrame()
+        st.write("මෙහි මකා දැමූ සියලු දත්ත අංශ අනුව පවතින අතර, නැවත ලබාගැනීමට (Restore) හෝ සදහටම පද්ධතියෙන්ම මකා දැමීමට (Permanent Delete) හැක.")
+        st.markdown("---")
 
-        if not deleted_p.empty:
-            st.subheader("Deleted Product Records (මකා දැමූ භාණ්ඩ):")
-            for idx, row in deleted_p.iterrows():
-                cols = st.columns([1, 1, 1.5, 2.5, 1.5])
-                code_val = str(row['Code'])
-                
-                if cols[0].button("🔄 Restore (නැවත ගන්න)", key=f"res_{idx}"):
-                    df_p.loc[df_p["Code"].astype(str) == code_val, "Is_Deleted"] = False
-                    save_data(df_p, PRODUCT_FILE)
-                    st.rerun()
-                    
-                if cols[1].button("❌ Delete Perm (සදහටම මකන්න)", key=f"perm_{idx}"):
-                    df_p = df_p[df_p["Code"].astype(str) != code_val]
-                    save_data(df_p, PRODUCT_FILE)
-                    st.rerun()
-                    
-                cols[2].write(str(code_val))
-                cols[3].write(str(row['Product Name']))
-                cols[4].write(str(row['Supplier']))
-        else:
-            st.info("Recycle bin is completely empty. (ඉවත දැමූ දත්ත බඳුන හිස්ය)")
+        tab_p, tab_s, tab_e, tab_c, tab_cu, tab_sup, tab_r = st.tabs([
+            "📦 Products", "🧾 Sales", "💸 Expenses", "📖 Credit Book", "👥 Customers", "🏭 Suppliers", "🔄 Returns"
+        ])
+
+        # 1. Products
+        with tab_p:
+            st.subheader("📦 Deleted Products (මකා දැමූ භාණ්ඩ)")
+            df_p = load_data(PRODUCT_FILE)
+            if not df_p.empty and "Is_Deleted" in df_p.columns:
+                del_p = df_p[df_p["Is_Deleted"] == True]
+                if not del_p.empty:
+                    for idx, row in del_p.iterrows():
+                        cols = st.columns([1, 1.2, 1.5, 2.5, 1.5])
+                        if cols[0].button("🔄 Restore", key=f"res_p_{idx}"):
+                            df_p.loc[idx, "Is_Deleted"] = False
+                            save_data(df_p, PRODUCT_FILE)
+                            st.success("Product Restored!")
+                            st.rerun()
+                        if cols[1].button("❌ Perm Delete", key=f"perm_p_{idx}"):
+                            df_p = df_p.drop(idx)
+                            save_data(df_p, PRODUCT_FILE)
+                            st.warning("Product Permanently Deleted!")
+                            st.rerun()
+                        cols[2].write(str(row['Code']))
+                        cols[3].write(str(row['Product Name']))
+                        cols[4].write(str(row['Supplier']))
+                else:
+                    st.info("No deleted products in Recycle Bin. (මකා දැමූ භාණ්ඩ නොමැත)")
+            else:
+                st.info("No deleted products in Recycle Bin. (මකා දැමූ භාණ්ඩ නොමැත)")
+
+        # 2. Sales
+        with tab_s:
+            st.subheader("🧾 Deleted Sales Transactions (මකා දැමූ විකුණුම්)")
+            df_s = load_data(SALES_FILE)
+            if not df_s.empty and "Is_Deleted" in df_s.columns:
+                del_s = df_s[df_s["Is_Deleted"] == True]
+                if not del_s.empty:
+                    for idx, row in del_s.iterrows():
+                        cols = st.columns([1, 1.2, 1.5, 2, 1.5, 1.5])
+                        if cols[0].button("🔄 Restore", key=f"res_s_{idx}"):
+                            df_s.loc[idx, "Is_Deleted"] = False
+                            save_data(df_s, SALES_FILE)
+                            st.success("Sales Record Restored!")
+                            st.rerun()
+                        if cols[1].button("❌ Perm Delete", key=f"perm_s_{idx}"):
+                            df_s = df_s.drop(idx)
+                            save_data(df_s, SALES_FILE)
+                            st.warning("Sales Record Permanently Deleted!")
+                            st.rerun()
+                        cols[2].write(str(row['Invoice ID']))
+                        cols[3].write(str(row['Product Name']))
+                        cols[4].write(f"Rs. {row['Total Price']:,.2f}")
+                        cols[5].write(str(row['Date']))
+                else:
+                    st.info("No deleted sales records in Recycle Bin. (මකා දැමූ විකුණුම් වාර්තා නොමැත)")
+            else:
+                st.info("No deleted sales records in Recycle Bin. (මකා දැමූ විකුණුම් වාර්තා නොමැත)")
+
+        # 3. Expenses
+        with tab_e:
+            st.subheader("💸 Deleted Expenses (මකා දැමූ වියදම්)")
+            df_e = load_data(EXPENSES_FILE)
+            if not df_e.empty and "Is_Deleted" in df_e.columns:
+                del_e = df_e[df_e["Is_Deleted"] == True]
+                if not del_e.empty:
+                    for idx, row in del_e.iterrows():
+                        cols = st.columns([1, 1.2, 1.5, 2.5, 1.5])
+                        if cols[0].button("🔄 Restore", key=f"res_e_{idx}"):
+                            df_e.loc[idx, "Is_Deleted"] = False
+                            save_data(df_e, EXPENSES_FILE)
+                            st.success("Expense Entry Restored!")
+                            st.rerun()
+                        if cols[1].button("❌ Perm Delete", key=f"perm_e_{idx}"):
+                            df_e = df_e.drop(idx)
+                            save_data(df_e, EXPENSES_FILE)
+                            st.warning("Expense Entry Permanently Deleted!")
+                            st.rerun()
+                        cols[2].write(str(row['Date']))
+                        cols[3].write(str(row['Description']))
+                        cols[4].write(f"Rs. {row['Amount']:,.2f}")
+                else:
+                    st.info("No deleted expenses in Recycle Bin. (මකා දැමූ වියදම් නොමැත)")
+            else:
+                st.info("No deleted expenses in Recycle Bin. (මකා දැමූ වියදම් නොමැත)")
+
+        # 4. Credit Book
+        with tab_c:
+            st.subheader("📖 Deleted Credit Records (මකා දැමූ ණය සටහන්)")
+            df_cr = load_data(CREDIT_FILE)
+            if not df_cr.empty and "Is_Deleted" in df_cr.columns:
+                del_cr = df_cr[df_cr["Is_Deleted"] == True]
+                if not del_cr.empty:
+                    for idx, row in del_cr.iterrows():
+                        cols = st.columns([1, 1.2, 2, 1.5, 1.5])
+                        if cols[0].button("🔄 Restore", key=f"res_cr_{idx}"):
+                            df_cr.loc[idx, "Is_Deleted"] = False
+                            save_data(df_cr, CREDIT_FILE)
+                            st.success("Credit Record Restored!")
+                            st.rerun()
+                        if cols[1].button("❌ Perm Delete", key=f"perm_cr_{idx}"):
+                            df_cr = df_cr.drop(idx)
+                            save_data(df_cr, CREDIT_FILE)
+                            st.warning("Credit Record Permanently Deleted!")
+                            st.rerun()
+                        cols[2].write(str(row['Customer Name']))
+                        cols[3].write(str(row['Phone']))
+                        cols[4].write(f"Rs. {row['Due Balance']:,.2f}")
+                else:
+                    st.info("No deleted credit records in Recycle Bin. (මකා දැමූ ණය සටහන් නොමැත)")
+            else:
+                st.info("No deleted credit records in Recycle Bin. (මකා දැමූ ණය සටහන් නොමැත)")
+
+        # 5. Customers
+        with tab_cu:
+            st.subheader("👥 Deleted Customers (මකා දැමූ ගනුදෙනුකරුවන්)")
+            df_cu = load_data(CUSTOMER_FILE)
+            if not df_cu.empty and "Is_Deleted" in df_cu.columns:
+                del_cu = df_cu[df_cu["Is_Deleted"] == True]
+                if not del_cu.empty:
+                    for idx, row in del_cu.iterrows():
+                        cols = st.columns([1, 1.2, 2, 1.5, 1.5])
+                        if cols[0].button("🔄 Restore", key=f"res_cu_{idx}"):
+                            df_cu.loc[idx, "Is_Deleted"] = False
+                            save_data(df_cu, CUSTOMER_FILE)
+                            st.success("Customer Profile Restored!")
+                            st.rerun()
+                        if cols[1].button("❌ Perm Delete", key=f"perm_cu_{idx}"):
+                            df_cu = df_cu.drop(idx)
+                            save_data(df_cu, CUSTOMER_FILE)
+                            st.warning("Customer Profile Permanently Deleted!")
+                            st.rerun()
+                        cols[2].write(str(row['Customer Name']))
+                        cols[3].write(str(row['Phone']))
+                        cols[4].write(f"Pts: {row['Loyalty Points']}")
+                else:
+                    st.info("No deleted customer profiles in Recycle Bin. (මකා දැමූ ගනුදෙනුකරුවන් නොමැත)")
+            else:
+                st.info("No deleted customer profiles in Recycle Bin. (මකා දැමූ ගනුදෙනුකරුවන් නොමැත)")
+
+        # 6. Suppliers
+        with tab_sup:
+            st.subheader("🏭 Deleted Suppliers (මකා දැමූ සපයන්නන්)")
+            df_sup = load_data(SUPPLIER_FILE)
+            if not df_sup.empty and "Is_Deleted" in df_sup.columns:
+                del_sup = df_sup[df_sup["Is_Deleted"] == True]
+                if not del_sup.empty:
+                    for idx, row in del_sup.iterrows():
+                        cols = st.columns([1, 1.2, 2, 1.5, 1.5])
+                        if cols[0].button("🔄 Restore", key=f"res_sup_{idx}"):
+                            df_sup.loc[idx, "Is_Deleted"] = False
+                            save_data(df_sup, SUPPLIER_FILE)
+                            st.success("Supplier Profile Restored!")
+                            st.rerun()
+                        if cols[1].button("❌ Perm Delete", key=f"perm_sup_{idx}"):
+                            df_sup = df_sup.drop(idx)
+                            save_data(df_sup, SUPPLIER_FILE)
+                            st.warning("Supplier Profile Permanently Deleted!")
+                            st.rerun()
+                        cols[2].write(str(row['Supplier Name']))
+                        cols[3].write(str(row['Phone']))
+                        cols[4].write(str(row['Company']))
+                else:
+                    st.info("No deleted suppliers in Recycle Bin. (මකා දැමූ සපයන්නන් නොමැත)")
+            else:
+                st.info("No deleted suppliers in Recycle Bin. (මකා දැමූ සපයන්නන් නොමැත)")
+
+        # 7. Returns
+        with tab_r:
+            st.subheader("🔄 Deleted Returns (මකා දැමූ ආපසු භාරගැනීම්)")
+            df_r = load_data(RETURNS_FILE)
+            if not df_r.empty and "Is_Deleted" in df_r.columns:
+                del_r = df_r[df_r["Is_Deleted"] == True]
+                if not del_r.empty:
+                    for idx, row in del_r.iterrows():
+                        cols = st.columns([1, 1.2, 1.5, 2, 1.5])
+                        if cols[0].button("🔄 Restore", key=f"res_r_{idx}"):
+                            df_r.loc[idx, "Is_Deleted"] = False
+                            save_data(df_r, RETURNS_FILE)
+                            st.success("Return Record Restored!")
+                            st.rerun()
+                        if cols[1].button("❌ Perm Delete", key=f"perm_r_{idx}"):
+                            df_r = df_r.drop(idx)
+                            save_data(df_r, RETURNS_FILE)
+                            st.warning("Return Record Permanently Deleted!")
+                            st.rerun()
+                        cols[2].write(str(row['Date']))
+                        cols[3].write(str(row['Invoice ID']))
+                        cols[4].write(f"Rs. {row['Refund Amount']:,.2f}")
+                else:
+                    st.info("No deleted return records in Recycle Bin. (මකා දැමූ ආපසු භාරගැනීම් නොමැත)")
+            else:
+                st.info("No deleted return records in Recycle Bin. (මකා දැමූ ආපසු භාරගැනීම් නොමැත)")
