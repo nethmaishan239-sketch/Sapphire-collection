@@ -93,7 +93,6 @@ def init_system_files():
 
 init_system_files()
 
-# Load Master Tables into Session State or variables
 df_users = load_data(USERS_FILE, ["Username", "PasswordHash", "Role", "Is_Deleted"])
 df_sup = load_data(SUPPLIER_FILE, ["Supplier Name", "Phone", "Company", "Pending Payable", "Is_Deleted"])
 df_cust = load_data(CUSTOMER_FILE, ["Customer Name", "Phone", "Loyalty Points", "Tier", "Credit_Owed", "Is_Deleted"])
@@ -120,7 +119,7 @@ if "logged_in" not in st.session_state:
 
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center; margin-top: 5vh; color: #1f77b4;'>💎 Sapphire Enterprise ERP</h1>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align: center; color: gray; margin-bottom: 5vh;'>Secure Access Gateway</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center; color: gray; margin-bottom: 5vh;'>Secure Access Gateway (Pro Edition)</h4>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
@@ -180,7 +179,7 @@ active_emp = df_emp[df_emp["Is_Deleted"] == False] if not df_emp.empty else pd.D
 # MODULE 1: POS CHECKOUT
 # ==============================================================================
 if menu_choice == "🛒 POS Checkout":
-    st.title("🛒 Point of Sale Terminal")
+    st.title("🛒 Point of Sale Terminal (Pro)")
     
     if "cart" not in st.session_state: st.session_state.cart = []
     
@@ -335,8 +334,8 @@ elif menu_choice == "↩️ Returns & Refunds":
 # MODULE 3: INVENTORY & STOCK
 # ==============================================================================
 elif menu_choice == "📦 Inventory & Stock":
-    st.title("📦 Inventory Management")
-    t1, t2, t3 = st.tabs(["Add Item", "View Inventory", "Low Stock"])
+    st.title("📦 Advanced Inventory Management")
+    t1, t2, t3 = st.tabs(["Add Item", "View Inventory", "Low Stock Alert"])
     with t1:
         with st.form("inv_form"):
             i_code = st.text_input("Item Code")
@@ -346,11 +345,11 @@ elif menu_choice == "📦 Inventory & Stock":
             s_price = st.number_input("Selling Price", 0.0)
             s_qty = st.number_input("Stock Qty", 0)
             r_lvl = st.number_input("Reorder Level", 5)
-            if st.form_submit_button("Save"):
+            if st.form_submit_button("Save Item"):
                 new_item = {"Item Code": i_code, "Item Name": i_name, "Category": i_cat, "Cost Price": c_price, "Selling Price": s_price, "Stock Quantity": s_qty, "Reorder_Level": r_lvl, "Is_Deleted": False}
                 df_items_up = pd.concat([df_items, pd.DataFrame([new_item])], ignore_index=True)
                 save_data(df_items_up, ITEMS_FILE)
-                st.success("Saved.")
+                st.success("Item saved successfully.")
                 st.rerun()
     with t2:
         st.dataframe(active_items, use_container_width=True)
@@ -363,13 +362,13 @@ elif menu_choice == "📦 Inventory & Stock":
 # MODULE 4: PURCHASES (PO)
 # ==============================================================================
 elif menu_choice == "🏭 Purchases (PO)":
-    st.title("🏭 Purchase Orders")
+    st.title("🏭 Purchase Orders & Vendors")
     t_v, t_p, t_r = st.tabs(["Vendors", "Create PO", "Receive PO"])
     with t_v:
         with st.form("v_form"):
             v_name = st.text_input("Supplier Name")
             v_phone = st.text_input("Phone")
-            if st.form_submit_button("Add"):
+            if st.form_submit_button("Add Vendor"):
                 df_sup_up = pd.concat([df_sup, pd.DataFrame([{"Supplier Name": v_name, "Phone": v_phone, "Company": "", "Pending Payable": 0.0, "Is_Deleted": False}])], ignore_index=True)
                 save_data(df_sup_up, SUPPLIER_FILE)
                 st.success("Vendor added.")
@@ -399,21 +398,21 @@ elif menu_choice == "🏭 Purchases (PO)":
                     idx = df_po[df_po["PO_ID"] == sel_po].index[0]
                     df_po.loc[idx, "Status"] = "Completed"
                     save_data(df_po, PO_FILE)
-                    st.success("Received.")
+                    st.success("Received and stock updated.")
                     st.rerun()
 
 # ==============================================================================
 # MODULE 5: CRM & CREDIT
 # ==============================================================================
 elif menu_choice == "👥 CRM & Credit":
-    st.title("👥 CRM & Credit Control")
+    st.title("👥 CRM & Customer Loyalty")
     with st.form("c_reg"):
         c_n = st.text_input("Customer Name")
         c_p = st.text_input("Phone")
-        if st.form_submit_button("Register"):
+        if st.form_submit_button("Register Customer"):
             df_cust_up = pd.concat([df_cust, pd.DataFrame([{"Customer Name": c_n, "Phone": c_p, "Loyalty Points": 0, "Tier": "Bronze 🥉", "Credit_Owed": 0.0, "Is_Deleted": False}])], ignore_index=True)
             save_data(df_cust_up, CUSTOMER_FILE)
-            st.success("Saved.")
+            st.success("Customer registered.")
             st.rerun()
     st.dataframe(active_cust, use_container_width=True)
 
@@ -421,56 +420,58 @@ elif menu_choice == "👥 CRM & Credit":
 # MODULE 6: HR & PAYROLL
 # ==============================================================================
 elif menu_choice == "💸 HR & Payroll":
-    st.title("💸 HR & Expenses")
+    st.title("💸 HR, Attendance & Expenses")
     t_e, t_a, t_ex = st.tabs(["Employees", "Attendance", "Expenses"])
     with t_e:
         with st.form("emp_f"):
             e_id = st.text_input("Emp ID")
             e_name = st.text_input("Name")
-            e_sal = st.number_input("Salary", 0.0)
-            if st.form_submit_button("Add"):
+            e_sal = st.number_input("Basic Salary", 0.0)
+            if st.form_submit_button("Add Employee"):
                 df_emp_up = pd.concat([df_emp, pd.DataFrame([{"Emp ID": e_id, "Name": e_name, "Role": "Staff", "Phone": "", "Basic_Salary": e_sal, "Is_Deleted": False}])], ignore_index=True)
                 save_data(df_emp_up, EMPLOYEE_FILE)
-                st.success("Added.")
+                st.success("Employee added.")
                 st.rerun()
         st.dataframe(active_emp, use_container_width=True)
     with t_a:
         if not active_emp.empty:
-            sel_em = st.selectbox("Employee", active_emp["Name"].tolist())
-            if st.button("Check In"):
+            sel_em = st.selectbox("Employee Name", active_emp["Name"].tolist())
+            if st.button("Check In Now"):
                 e_id = active_emp[active_emp["Name"]==sel_em]["Emp ID"].iloc[0]
                 df_att_up = pd.concat([df_att, pd.DataFrame([{"Date": datetime.now().strftime("%Y-%m-%d"), "Emp ID": e_id, "Name": sel_em, "Check_In": datetime.now().strftime("%H:%M:%S"), "Check_Out": "", "Hours_Worked": 0.0}])], ignore_index=True)
                 save_data(df_att_up, ATTENDANCE_FILE)
-                st.success("Checked in.")
+                st.success("Attendance checked in.")
                 st.rerun()
             st.dataframe(df_att, use_container_width=True)
     with t_ex:
         with st.form("ex_f"):
-            cat = st.selectbox("Category", ["Rent", "Utilities", "Other"])
-            amt = st.number_input("Amount", 0.0)
-            if st.form_submit_button("Log"):
+            cat = st.selectbox("Expense Category", ["Rent", "Utilities", "Salaries", "Other"])
+            amt = st.number_input("Amount (Rs.)", 0.0)
+            if st.form_submit_button("Log Expense"):
                 df_exp_up = pd.concat([df_exp, pd.DataFrame([{"Date": datetime.now().strftime("%Y-%m-%d"), "Category": cat, "Description": "", "Amount": amt, "Logged By": st.session_state.username}])], ignore_index=True)
                 save_data(df_exp_up, EXPENSE_FILE)
-                st.success("Logged.")
+                st.success("Expense logged.")
                 st.rerun()
 
 # ==============================================================================
 # MODULE 7: P&L REPORTS
 # ==============================================================================
 elif menu_choice == "📊 Profit & Loss Reports":
-    st.title("📊 P&L Statement")
+    st.title("📊 Profit & Loss Statement (Advanced Analytics)")
     tot_sales = df_sales["Total Amount"].sum() if not df_sales.empty else 0.0
     tot_exp = df_exp["Amount"].sum() if not df_exp.empty else 0.0
     net = tot_sales - tot_exp
-    col1, col2 = st.columns(2)
-    col1.metric("Total Sales", f"Rs. {tot_sales:,.2f}")
-    col2.metric("Net Profit", f"Rs. {net:,.2f}")
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Sales", f"Rs. {tot_sales:,.2f}")
+    c2.metric("Total Expenses", f"Rs. {tot_exp:,.2f}")
+    c3.metric("Net Profit", f"Rs. {net:,.2f}")
     
     if not df_sales.empty:
         s_trend = df_sales.copy()
         s_trend['Date'] = pd.to_datetime(s_trend['Date']).dt.date
         daily_s = s_trend.groupby('Date')['Total Amount'].sum().reset_index()
-        fig_s = px.bar(daily_s, x='Date', y='Total Amount', title="Daily Revenue", template="plotly_white")
+        fig_s = px.bar(daily_s, x='Date', y='Total Amount', title="Daily Revenue Trends", template="plotly_white")
         st.plotly_chart(fig_s, use_container_width=True)
 
 # ==============================================================================
@@ -480,6 +481,19 @@ elif menu_choice == "⚙️ System Admin":
     if st.session_state.role != "Admin":
         st.error("Access Denied.")
         st.stop()
-    st.title("⚙️ Admin Settings")
+    st.title("⚙️ System Administration & Database Management")
+    
+    st.subheader("📁 Database Backup (ZIP)")
+    if st.button("Download System Backup ZIP"):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for root, dirs, files in os.walk(DB_DIR):
+                for file in files:
+                    zip_file.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), DB_DIR))
+        buffer.seek(0)
+        st.download_button(label="📥 Download Backup ZIP", data=buffer, file_name="sapphire_erp_backup.zip", mime="application/zip")
+        
+    st.markdown("---")
+    st.subheader("📋 System Audit Logs")
     if os.path.exists(AUDIT_FILE):
         st.dataframe(pd.read_csv(AUDIT_FILE), use_container_width=True)
