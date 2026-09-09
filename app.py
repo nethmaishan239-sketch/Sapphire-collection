@@ -48,7 +48,6 @@ df_credit = load_data(CREDIT_FILE, ["Record ID", "Customer Name", "Phone", "Desc
 df_customers = load_data(CUSTOMER_FILE, ["Customer Name", "Phone", "Points", "Tier"])
 df_sales = load_data(SALES_FILE, ["Invoice No", "Date", "Cashier", "Customer", "Total", "Payment Method"])
 
-# ==============================================================================
 REGION_ROLES = {
     "Admin": "admin123",
     "Cashier": "cashier123",
