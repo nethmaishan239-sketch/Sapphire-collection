@@ -459,7 +459,7 @@ else:
                     cust_phone = st.text_input("📱 Customer Phone Number (දුරකථන අංකය):").strip()
                     pay_method = st.selectbox("Payment Method (ගෙවීමේ ක්‍රමය):", ["Cash (මුදල්)", "Card (කාඩ්)", "Online Transfer (ඔන්ලයින්)", "Credit (ණය)"])
 
-                    if st.button("✅ Checkout & Print Receipt (බිල්පත මුದ್ರණය කරන්න)", type="primary", use_container_width=True):
+                    if st.button("✅ Checkout & Print Receipt (බිල්පත මුද්‍රණය කරන්න)", type="primary", use_container_width=True):
                         inv_id = datetime.now().strftime("INV%Y%m%d%H%M%S")
                         now_str = datetime.now().strftime("%Y-%m-%d")
                         
@@ -777,13 +777,13 @@ else:
             pending_credits = active_credit[active_credit["Due Balance"] > 0] if not active_credit.empty else pd.DataFrame()
             
             if not pending_credits.empty:
+                cust_options = pending_credits["Customer Name"].tolist()
+                sel_cust = st.selectbox("Select Customer to Settle (ගනුදෙනුකරු තෝරන්න):", cust_options)
+                
+                curr_due = float(pending_credits[pending_credits["Customer Name"] == sel_cust]["Due Balance"].iloc[0])
+                st.info(f"Current Balance Due for **{sel_cust}**: **Rs. {curr_due:,.2f}**")
+
                 with st.form("settle_credit_form", clear_on_submit=True):
-                    cust_options = pending_credits["Customer Name"].tolist()
-                    sel_cust = st.selectbox("Select Customer to Settle (ගනුදෙනුකරු තෝරන්න):", cust_options)
-                    
-                    curr_due = float(pending_credits[pending_credits["Customer Name"] == sel_cust]["Due Balance"].iloc[0])
-                    st.info(f"Current Balance Due for **{sel_cust}**: **Rs. {curr_due:,.2f}**")
-                    
                     pay_amt = st.number_input("Paid Amount by Customer (Rs.) (ගෙවන ලද මුදල)", min_value=0.0, max_value=curr_due, format="%.2f")
 
                     if st.form_submit_button("✅ Deduct Paid Amount (ණය අඩු කරන්න)"):
