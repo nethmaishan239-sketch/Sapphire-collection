@@ -93,7 +93,7 @@ def init_system_files():
 
 init_system_files()
 
-# Load Master Tables
+# Load Master Tables into Session State or variables
 df_users = load_data(USERS_FILE, ["Username", "PasswordHash", "Role", "Is_Deleted"])
 df_sup = load_data(SUPPLIER_FILE, ["Supplier Name", "Phone", "Company", "Pending Payable", "Is_Deleted"])
 df_cust = load_data(CUSTOMER_FILE, ["Customer Name", "Phone", "Loyalty Points", "Tier", "Credit_Owed", "Is_Deleted"])
@@ -465,6 +465,13 @@ elif menu_choice == "📊 Profit & Loss Reports":
     col1, col2 = st.columns(2)
     col1.metric("Total Sales", f"Rs. {tot_sales:,.2f}")
     col2.metric("Net Profit", f"Rs. {net:,.2f}")
+    
+    if not df_sales.empty:
+        s_trend = df_sales.copy()
+        s_trend['Date'] = pd.to_datetime(s_trend['Date']).dt.date
+        daily_s = s_trend.groupby('Date')['Total Amount'].sum().reset_index()
+        fig_s = px.bar(daily_s, x='Date', y='Total Amount', title="Daily Revenue", template="plotly_white")
+        st.plotly_chart(fig_s, use_container_width=True)
 
 # ==============================================================================
 # MODULE 8: SYSTEM ADMIN
