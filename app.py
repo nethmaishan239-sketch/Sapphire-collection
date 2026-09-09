@@ -271,7 +271,7 @@ else:
                 st.write("**Stock Quantities across Measurement Units (මිනුම් ඒකක අනුව තොග ප්‍රමාණය):**")
                 col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(5)
                 p_meter = col_p1.number_input("Meters (මීටර්)", min_value=0.0, step=0.5)
-                p_yard = col_p2.number_input("Yards (යတ်)", min_value=0.0, step=0.5)
+                p_yard = col_p2.number_input("Yards (යට්)", min_value=0.0, step=0.5)
                 p_qty = col_p3.number_input("Pcs (කෑලි)", min_value=0.0, step=1.0)
                 p_kg = col_p4.number_input("Kg (කිලෝග්‍රෑම්)", min_value=0.0, step=0.1)
                 p_liter = col_p5.number_input("Liters (ලීටර්)", min_value=0.0, step=0.1)
@@ -651,7 +651,7 @@ else:
                 cols[1].write(str(row['Code']))
                 cols[2].write(str(row['Product Name']))
                 cols[3].write(f"M: {row['Total Meter']}")
-                cols[4].write(f"Pcs: {row['Total Quantity (Pcs)']}")
+                cols[4].write(f"Pcs: {row['Total Quantity (Pcs']}")
                 cols[5].write(f"Kg: {row['Total Kg']}")
                 cols[6].write(str(row['Supplier']))
         else:
@@ -692,7 +692,7 @@ else:
                     cols[2].write(str(row['Description']))
                     cols[3].write(f"Rs. {row['Amount']:,.2f}")
             else:
-            st.info("No expense records found. (වියදම් වාර්තා නොමැත)")
+                st.info("No expense records found. (වියදම් වාර්තා නොමැත)")
 
     # ==================== 15. SUPPLIER MANAGEMENT ====================
     elif st.session_state["current_page"] == "Suppliers":
