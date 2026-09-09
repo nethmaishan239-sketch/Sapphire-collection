@@ -54,7 +54,7 @@ def init_files():
         df_cu = pd.DataFrame(columns=["Customer Name", "Phone", "Loyalty Points", "Is_Deleted"])
         df_cu.to_csv(CUSTOMER_FILE, index=False)
 
-    if not os.stat(SUPPLIER_FILE).st_size == 0 if os.path.exists(SUPPLIER_FILE) else True:
+    if not os.path.exists(SUPPLIER_FILE) or os.stat(SUPPLIER_FILE).st_size == 0:
         df_su = pd.DataFrame(columns=["Supplier Name", "Phone", "Company", "Pending Payable", "Is_Deleted"])
         df_su.to_csv(SUPPLIER_FILE, index=False)
 
@@ -101,7 +101,7 @@ if "cart" not in st.session_state:
 if "last_invoice" not in st.session_state:
     st.session_state["last_invoice"] = None
 
-# ==================== 6. LOGIN PAGE UI ====================
+# ==================== 6. LOGIN PAGE UI (Admin & Cashier only) ====================
 if not st.session_state["logged_in"]:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; color: #1E88E5;'>SAPPHIRE COLLECTION POS</h1>", unsafe_allow_html=True)
@@ -500,7 +500,6 @@ else:
             # ==================== DEVICE WEB INTENT SMS BUTTON ====================
             cust_phone_val = inv.get("phone", "").strip()
             if cust_phone_val:
-                # Format phone number for Sri Lanka (+94)
                 if cust_phone_val.startswith("0"):
                     formatted_phone = "+94" + cust_phone_val[1:]
                 elif not cust_phone_val.startswith("+"):
@@ -510,8 +509,6 @@ else:
 
                 sms_msg = f"Thank you for shopping at Sapphire Collection! Invoice: {inv['id']}, Total: Rs.{inv['total']:,.2f}. Thank You!"
                 encoded_msg = urllib.parse.quote(sms_msg)
-                
-                # Device Intent SMS Link
                 sms_intent_url = f"sms:{formatted_phone}?body={encoded_msg}"
 
                 st.markdown(
