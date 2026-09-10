@@ -6,7 +6,7 @@ import barcode
 from barcode.writer import ImageWriter
 import urllib.parse
 
-# ==================== 1. PAGE CONFIGURATION (පිටු වින්‍යාසය) ====================
+# ==================== 1. PAGE CONFIGURATION ====================
 st.set_page_config(
     page_title="Sapphire Collection POS",
     page_icon="🛍️",
@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 2. FILE PATHS SETUP (ගොනු මාර්ග සැකසීම) ====================
+# ==================== 2. FILE PATHS SETUP ====================
 PRODUCT_FILE = "products.csv"
 SALES_FILE = "sales.csv"
 EXPENSES_FILE = "expenses.csv"
@@ -23,7 +23,7 @@ CUSTOMER_FILE = "customers.csv"
 SUPPLIER_FILE = "suppliers.csv"
 RETURNS_FILE = "returns.csv"
 
-# ==================== 3. FILE INITIALIZATION (ගොනු ආරම්භය) ====================
+# ==================== 3. FILE INITIALIZATION ====================
 def init_files():
     if not os.path.exists(PRODUCT_FILE) or os.stat(PRODUCT_FILE).st_size == 0:
         df_p = pd.DataFrame(columns=[
@@ -64,7 +64,7 @@ def init_files():
 
 init_files()
 
-# ==================== 4. HELPER FUNCTIONS (උපකාරක ක්‍රියාකාරකම්) ====================
+# ==================== 4. HELPER FUNCTIONS ====================
 def load_data(file_path):
     try:
         if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
@@ -107,7 +107,7 @@ if "last_credit_receipt" not in st.session_state:
 if "reset_counter" not in st.session_state:
     st.session_state["reset_counter"] = 0
 
-# ==================== 6. LOGIN PAGE UI (ප්‍රවේශ වීම) ====================
+# ==================== 6. LOGIN PAGE UI ====================
 if not st.session_state["logged_in"]:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; color: #1E88E5;'>SAPPHIRE COLLECTION POS</h1>", unsafe_allow_html=True)
@@ -161,7 +161,7 @@ else:
 
     st.markdown("---")
 
-    # ==================== 8. MAIN MENU DASHBOARD (ප්‍රධාන මෙනුව) ====================
+    # ==================== 8. MAIN MENU DASHBOARD ====================
     if st.session_state["current_page"] == "Main Menu":
         st.markdown("<h1 style='text-align: center; color: #333;'>💎 Sapphire Collection POS System</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center;'>Select a module below to proceed (කැමති අංශයක් තෝරන්න)</p>", unsafe_allow_html=True)
@@ -416,7 +416,6 @@ else:
                                 "Profit": item_total - (unit_qty * float(prod_row["Cost Price"]))
                             })
                             
-                            # Increment reset counter so widget keys update and clear fields automatically without error
                             st.session_state["reset_counter"] += 1
                             st.success("Item added to cart! (කරත්තයට එකතු කරන ලදී!)")
                             st.rerun()
@@ -593,7 +592,7 @@ else:
             net_profit = total_prof - total_exp
 
             m1.metric("💰 Gross Revenue (මුළු ආදායම)", f"Rs. {total_rev:,.2f}")
-            m2.metric("📦 Gross Profit ( දළ ලාභය)", f"Rs. {total_prof:,.2f}")
+            m2.metric("📦 Gross Profit (දළ ලාභය)", f"Rs. {total_prof:,.2f}")
             m3.metric("💸 Shop Expenses (වියදම්)", f"Rs. {total_exp:,.2f}")
             m4.metric("💵 Net Profit (ශුද්ධ ලාභය)", f"Rs. {net_profit:,.2f}")
 
@@ -651,7 +650,7 @@ else:
                 cols[1].write(str(row['Code']))
                 cols[2].write(str(row['Product Name']))
                 cols[3].write(f"M: {row['Total Meter']}")
-                cols[4].write(f"Pcs: {row['Total Quantity (Pcs']}")
+                cols[4].write(f"Pcs: {row['Total Quantity (Pcs)']}")
                 cols[5].write(f"Kg: {row['Total Kg']}")
                 cols[6].write(str(row['Supplier']))
         else:
@@ -984,7 +983,6 @@ else:
             "📦 Products", "🧾 Sales", "💸 Expenses", "📖 Credit Book", "👥 Customers", "🏭 Suppliers", "🔄 Returns"
         ])
 
-        # 1. Products
         with tab_p:
             st.subheader("📦 Deleted Products (මකා දැමූ භාණ්ඩ)")
             df_p = load_data(PRODUCT_FILE)
@@ -1011,7 +1009,6 @@ else:
             else:
                 st.info("No deleted products in Recycle Bin. (මකා දැමූ භාණ්ඩ නොමැත)")
 
-        # 2. Sales
         with tab_s:
             st.subheader("🧾 Deleted Sales Transactions (මකා දැමූ විකුණුම්)")
             df_s = load_data(SALES_FILE)
@@ -1039,7 +1036,6 @@ else:
             else:
                 st.info("No deleted sales records in Recycle Bin. (මකා දැමූ විකුණුම් වාර්තා නොමැත)")
 
-        # 3. Expenses
         with tab_e:
             st.subheader("💸 Deleted Expenses (මකා දැමූ වියදම්)")
             df_e = load_data(EXPENSES_FILE)
@@ -1066,7 +1062,6 @@ else:
             else:
                 st.info("No deleted expenses in Recycle Bin. (මකා දැමූ වියදම් නොමැත)")
 
-        # 4. Credit Book
         with tab_c:
             st.subheader("📖 Deleted Credit Records (මකා දැමූ ණය සටහන්)")
             df_cr = load_data(CREDIT_FILE)
@@ -1093,7 +1088,6 @@ else:
             else:
                 st.info("No deleted credit records in Recycle Bin. (මකා දැමූ ණය සටහන් නොමැත)")
 
-        # 5. Customers
         with tab_cu:
             st.subheader("👥 Deleted Customers (මකා දැමූ ගනුදෙනුකරුවන්)")
             df_cu = load_data(CUSTOMER_FILE)
@@ -1120,7 +1114,6 @@ else:
             else:
                 st.info("No deleted customer profiles in Recycle Bin. (මකා දැමූ ගනුදෙනුකරුවන් නොමැත)")
 
-        # 6. Suppliers
         with tab_sup:
             st.subheader("🏭 Deleted Suppliers (මකා දැමූ සපයන්නන්)")
             df_sup = load_data(SUPPLIER_FILE)
@@ -1147,7 +1140,6 @@ else:
             else:
                 st.info("No deleted suppliers in Recycle Bin. (මකා දැමූ සපයන්නන් නොමැත)")
 
-        # 7. Returns
         with tab_r:
             st.subheader("🔄 Deleted Returns (මකා දැමූ ආපසු භාරගැනීම්)")
             df_r = load_data(RETURNS_FILE)
