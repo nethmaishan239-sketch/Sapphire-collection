@@ -104,13 +104,8 @@ if "last_invoice" not in st.session_state:
 if "last_credit_receipt" not in st.session_state:
     st.session_state["last_credit_receipt"] = None
 
-for key in ["form_meter", "form_yard", "form_pcs", "form_kg", "form_liter"]:
-    if key not in st.session_state:
-        st.session_state[key] = 0.0
-
-for key in ["inp_meter", "inp_yard", "inp_pcs", "inp_kg", "inp_liter"]:
-    if key not in st.session_state:
-        st.session_state[key] = 0.0
+if "reset_counter" not in st.session_state:
+    st.session_state["reset_counter"] = 0
 
 # ==================== 6. LOGIN PAGE UI (ප්‍රවේශ වීම) ====================
 if not st.session_state["logged_in"]:
@@ -387,14 +382,15 @@ else:
 
                     st.success(f"Selling Price (විකුණුම් මිල): **Rs. {float(prod_row['Selling Price']):,.2f}**")
 
+                    cnt = st.session_state["reset_counter"]
                     st.write("Enter Quantities to Add (ප්‍රමාණයන් ඇතුළත් කරන්න):")
                     col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
                     
-                    sell_m = col_b1.number_input("Meter:", min_value=0.0, step=0.1, key="inp_meter")
-                    sell_y = col_b2.number_input("Yard:", min_value=0.0, step=0.1, key="inp_yard")
-                    sell_q = col_b3.number_input("Pcs:", min_value=0.0, step=1.0, key="inp_pcs")
-                    sell_kg = col_b4.number_input("Kg:", min_value=0.0, step=0.05, key="inp_kg")
-                    sell_l = col_b5.number_input("Liter:", min_value=0.0, step=0.05, key="inp_liter")
+                    sell_m = col_b1.number_input("Meter:", min_value=0.0, step=0.1, key=f"inp_meter_{cnt}")
+                    sell_y = col_b2.number_input("Yard:", min_value=0.0, step=0.1, key=f"inp_yard_{cnt}")
+                    sell_q = col_b3.number_input("Pcs:", min_value=0.0, step=1.0, key=f"inp_pcs_{cnt}")
+                    sell_kg = col_b4.number_input("Kg:", min_value=0.0, step=0.05, key=f"inp_kg_{cnt}")
+                    sell_l = col_b5.number_input("Liter:", min_value=0.0, step=0.05, key=f"inp_liter_{cnt}")
 
                     warranty_val = st.selectbox("Warranty Period (වගකීම් කාලය):", ["No Warranty", "6 Months", "1 Year", "2 Years", "3 Years"])
                     unit_qty = sell_m + sell_y + sell_q + sell_kg + sell_l
@@ -420,18 +416,8 @@ else:
                                 "Profit": item_total - (unit_qty * float(prod_row["Cost Price"]))
                             })
                             
-                            # Reset input values in session state so meter, yard, pcs, kg, liter clear to 0 automatically
-                            st.session_state["inp_meter"] = 0.0
-                            st.session_state["inp_yard"] = 0.0
-                            st.session_state["inp_pcs"] = 0.0
-                            st.session_state["inp_kg"] = 0.0
-                            st.session_state["inp_liter"] = 0.0
-                            st.session_state["form_meter"] = 0.0
-                            st.session_state["form_yard"] = 0.0
-                            st.session_state["form_pcs"] = 0.0
-                            st.session_state["form_kg"] = 0.0
-                            st.session_state["form_liter"] = 0.0
-                            
+                            # Increment reset counter so widget keys update and clear fields automatically without error
+                            st.session_state["reset_counter"] += 1
                             st.success("Item added to cart! (කරත්තයට එකතු කරන ලදී!)")
                             st.rerun()
                         else:
